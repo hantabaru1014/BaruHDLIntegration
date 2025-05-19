@@ -132,7 +132,7 @@ namespace BaruHDLIntegration
                         NotificationMessage.SpawnTextMessage($"Started world {startedId} on {host.Name}", color: new colorX(0.2f, 1f, 0.3f));
                         worldOrb.RunSynchronously(() =>
                         {
-                            worldOrb.ActiveSessionURLs = new List<Uri> { new Uri($"ressession:///${startedId}") };
+                            worldOrb.ActiveSessionURLs = new List<Uri> { new Uri($"ressession:///{startedId}") };
                             rootSlot.Destroy();
                         });
                     }
