@@ -64,8 +64,7 @@ namespace BaruHDLIntegration
 
         static void AddMenuItem(WorldOrb worldOrb, ContextMenu menu)
         {
-            var iconUri = OfficialAssets.Graphics.Icons.General.NewCustom;
-            var item = menu.AddItem("ヘッドレスでセッション開始", iconUri, null);
+            var item = menu.AddItem("ヘッドレスでセッション開始", OfficialAssets.Graphics.Badges.Headless, null);
             item.Button.LocalPressed += (IButton button, ButtonEventData eventData) =>
             {
                 BuildWorldStartPanel(worldOrb);
@@ -77,8 +76,16 @@ namespace BaruHDLIntegration
             };
         }
 
-        private static void BuildWorldStartPanel(WorldOrb worldOrb)
+        private static async void BuildWorldStartPanel(WorldOrb worldOrb)
         {
+            var client = BaruHDLIntegration.GetClient();
+            var hosts = (await client.ListHeadlessHost()).Where(h => h.Status == "HEADLESS_HOST_STATUS_RUNNING").ToList();
+            if (hosts.Count() == 0)
+            {
+                ResoniteMod.Warn($"No Runnning Headless Hosts");
+                NotificationMessage.SpawnTextMessage("No Runnning Headless Hosts", color: new colorX(1f, 0.2f, 0.3f));
+                return;
+            }
             worldOrb.RunSynchronously(() =>
             {
                 var rootSlot = worldOrb.World.AddSlot("Session Start", persistent: false);
@@ -87,44 +94,43 @@ namespace BaruHDLIntegration
                 rootSlot.LocalScale *= 0.0005f;
                 RadiantUI_Constants.SetupEditorStyle(ui);
                 rootSlot.SetContainerTitle("Start World by Headless");
-                ui.ScrollArea(null);
-                ui.VerticalLayout(4f, 0f, null, null, null);
+                ui.ScrollArea();
+                ui.VerticalLayout(4f, 0f);
                 ui.FitContent(SizeFit.Disabled, SizeFit.PreferredSize);
                 ui.Style.MinHeight = 32f;
                 ui.Style.PreferredHeight = 32f;
+                
+                var selectedHostIndexField = ui.HorizontalElementWithLabel("Host", 0.4f, () =>
+                {
+                    var hostLabels = hosts.Select(h => $"{h.Name}({h.AccountId.Substring(0, 6)})").ToList();
+                    return BuildArrowSelector(rootSlot, ui, hostLabels);
+                });
 
                 var nameField = ui.HorizontalElementWithLabel("World.Config.Name".AsLocaleKey(), 0.4f, () => ui.TextField());
                 nameField.TargetString = worldOrb.WorldName;
-                
+
+                var accessLevels = Enum.GetValues(typeof(SessionAccessLevel)).Cast<SessionAccessLevel>().ToList();
+                var accessLevelField = ui.HorizontalElementWithLabel("World.Config.AccessLevelHeader".AsLocaleKey(), 0.4f, () =>
+                {
+                    return BuildArrowSelector(rootSlot, ui, accessLevels.Select(a => a.ToString()).ToList(), accessLevels.Count() - 1);
+                });
+
                 var startBtn = ui.Button("World.Actions.StartSession".AsLocaleKey("<b>{0}</b>"));
                 startBtn.LocalPressed += async (IButton button, ButtonEventData eventData) =>
                 {
                     startBtn.Enabled = false;
                     startBtn.LabelText = "Starting...";
 
-                    var client = BaruHDLIntegration.GetClient();
-                    var host = (await client.ListHeadlessHost()).Where(h => h.Status == "HEADLESS_HOST_STATUS_RUNNING").First();
-                    if (host == null)
-                    {
-                        ResoniteMod.Warn($"No Runnning Headless Hosts");
-                        NotificationMessage.SpawnTextMessage("No Runnning Headless Hosts", color: new colorX(1f, 0.2f, 0.3f));
-
-                        worldOrb.RunSynchronously(() =>
-                        {
-                            startBtn.Enabled = true;
-                            startBtn.LabelText = "World.Actions.StartSession".AsLocaleKey("<b>{0}</b>").ToString();
-                            rootSlot.Destroy();
-                        });
-                        return;
-                    }
                     try
                     {
                         var startSettings = new WorldStartSettings
                         {
                             Link = worldOrb,
-                            DefaultAccessLevel = SessionAccessLevel.ContactsPlus,
+                            DefaultAccessLevel = accessLevels[accessLevelField.Value.Value],
                             FetchedWorldName = nameField.TargetString,
+                            
                         };
+                        var host = hosts[selectedHostIndexField.Value.Value];
                         ResoniteMod.Msg($"Starting world {startSettings.FetchedWorldName.ToString()}({startSettings.Link.URL}) on {host.Name}({host.AccountId})");
                         var startedId = await client.StartWorld(host.Id, startSettings);
 
@@ -151,6 +157,40 @@ namespace BaruHDLIntegration
                     };
                 };
             });
+        }
+
+        private static ValueField<int> BuildArrowSelector(Slot slot, UIBuilder ui, IList<string> labels, int defaultIndex = 0)
+        {
+            var field = slot.AttachComponent<ValueField<int>>();
+            ui.HorizontalLayout(4f);
+
+            ui.Style.FlexibleWidth = -1f;
+            ui.Style.MinWidth = 24f;
+            var prevBtn = ui.Button("<<");
+
+            ui.Style.FlexibleWidth = 100f;
+            ui.Style.MinWidth = -1f;
+            var centerBtn = ui.Button();
+            centerBtn.LabelText = labels[defaultIndex];
+
+            ui.Style.FlexibleWidth = -1f;
+            ui.Style.MinWidth = 24f;
+            var nextBtn = ui.Button(">>");
+
+            prevBtn.LocalPressed += (IButton button, ButtonEventData eventData) =>
+            {
+                field.Value.Value = (field.Value.Value - 1 + labels.Count()) % labels.Count();
+                centerBtn.LabelText = labels[field.Value.Value];
+            };
+            nextBtn.LocalPressed += (IButton button, ButtonEventData eventData) =>
+            {
+                field.Value.Value = (field.Value.Value + 1) % labels.Count();
+                centerBtn.LabelText = labels[field.Value.Value];
+            };
+
+            ui.NestOut();
+
+            return field;
         }
     }
 }
