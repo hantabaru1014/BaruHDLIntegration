@@ -7,6 +7,8 @@ using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.UIX;
 using HarmonyLib;
+using Hdlctrl.V1;
+using Headless.V1;
 using ResoniteModLoader;
 using SkyFrost.Base;
 
@@ -79,7 +81,7 @@ namespace BaruHDLIntegration
         private static async void BuildWorldStartPanel(WorldOrb worldOrb)
         {
             var client = BaruHDLIntegration.GetClient();
-            var hosts = (await client.ListHeadlessHost()).Where(h => h.Status == "HEADLESS_HOST_STATUS_RUNNING").ToList();
+            var hosts = (await client.ListHeadlessHost()).Where(h => h.Status == Hdlctrl.V1.HeadlessHostStatus.Running).ToList();
             if (hosts.Count() == 0)
             {
                 ResoniteMod.Warn($"No Runnning Headless Hosts");
@@ -123,22 +125,36 @@ namespace BaruHDLIntegration
 
                     try
                     {
-                        var startSettings = new WorldStartSettings
-                        {
-                            Link = worldOrb,
-                            DefaultAccessLevel = accessLevels[accessLevelField.Value.Value],
-                            FetchedWorldName = nameField.TargetString,
-                            
-                        };
                         var host = hosts[selectedHostIndexField.Value.Value];
-                        ResoniteMod.Msg($"Starting world {startSettings.FetchedWorldName.ToString()}({startSettings.Link.URL}) on {host.Name}({host.AccountId})");
-                        var startedId = await client.StartWorld(host.Id, startSettings);
+                        var startReq = new Hdlctrl.V1.StartWorldRequest
+                        {
+                            HostId = host.Id,
+                            Parameters =
+                            {
+                                Name = nameField.TargetString,
+                                AccessLevel = accessLevels[accessLevelField.Value.Value] switch
+                                {
+                                    SessionAccessLevel.Private => AccessLevel.Private,
+                                    SessionAccessLevel.LAN => AccessLevel.Lan,
+                                    SessionAccessLevel.Contacts => AccessLevel.Contacts,
+                                    SessionAccessLevel.ContactsPlus => AccessLevel.ContactsPlus,
+                                    SessionAccessLevel.RegisteredUsers => AccessLevel.RegisteredUsers,
+                                    SessionAccessLevel.Anyone => AccessLevel.Anyone,
+                                    _ => throw new Exception("Invalid Access Level")
+                                },
+                                LoadWorldUrl = worldOrb.URL.ToString(),
+                            }
+                        };
+                        
+                        ResoniteMod.Msg($"Starting world {worldOrb.WorldName}({worldOrb.URL}) on {host.Name}({host.Id})");
+                        var session = await client.StartWorld(startReq);
 
-                        ResoniteMod.Msg($"Started world {startedId} on {host.Name}");
-                        NotificationMessage.SpawnTextMessage($"Started world {startedId} on {host.Name}", color: new colorX(0.2f, 1f, 0.3f));
+                        ResoniteMod.Msg($"Started {session.Name}");
+                        NotificationMessage.SpawnTextMessage($"Started {session.Name}", color: new colorX(0.2f, 1f, 0.3f));
+                        var sessionUris = session.CurrentState.ConnectUris.Select(s => new Uri(s)).ToList();
                         worldOrb.RunSynchronously(() =>
                         {
-                            worldOrb.ActiveSessionURLs = new List<Uri> { new Uri($"ressession:///{startedId}") };
+                            worldOrb.ActiveSessionURLs = sessionUris.Count() == 0 ? new List<Uri> { new Uri($"ressession:///{session}") } : sessionUris;
                             rootSlot.Destroy();
                         });
                     }

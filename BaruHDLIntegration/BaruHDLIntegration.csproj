@@ -18,7 +18,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="JWT" Version="10.1.1" />
+    <PackageReference Include="Google.Protobuf" Version="3.31.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,9 +41,6 @@
     </Reference>
     <Reference Include="System.Net.Http">
       <HintPath>$(AppPath)$(AppName)_Data\Managed\System.Net.Http.dll</HintPath>
-    </Reference>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>$(AppPath)$(AppName)_Data\Managed\Newtonsoft.Json.dll</HintPath>
     </Reference>
   </ItemGroup>
 
