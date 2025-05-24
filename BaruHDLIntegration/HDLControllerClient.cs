@@ -21,9 +21,9 @@ namespace BaruHDLIntegration
 
         private string? _jwtToken;
 
-        public HDLControllerClient(string baseAddress, string id, string password)
+        public HDLControllerClient(string baseAddress, string id, string password, HttpClientHandler? clientHandler)
         {
-            _client = new HttpClient();
+            _client = clientHandler != null ? new HttpClient(clientHandler) : new HttpClient();
             _baseAddress = baseAddress;
             _id = id;
             _password = password;
@@ -108,7 +108,7 @@ namespace BaruHDLIntegration
             
             HttpRequestMessage MakeRequest()
             {
-                var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseAddress}/{service}/{rpcName}");
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseAddress.TrimEnd('/')}/{service}/{rpcName}");
                 if (_jwtToken is not null)
                 {
                     req.Headers.Add("Authorization", $"Bearer {_jwtToken}");

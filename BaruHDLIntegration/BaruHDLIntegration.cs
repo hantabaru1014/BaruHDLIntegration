@@ -1,5 +1,7 @@
 ﻿using HarmonyLib;
 using ResoniteModLoader;
+using System.Net;
+using System.Net.Http;
 
 namespace BaruHDLIntegration
 {
@@ -15,6 +17,10 @@ namespace BaruHDLIntegration
         public static readonly ModConfigurationKey<string> ApiIdKey = new ModConfigurationKey<string>("ApiIdKey", "ID");
         [AutoRegisterConfigKey]
         public static readonly ModConfigurationKey<string> ApiPasswordKey = new ModConfigurationKey<string>("ApiPasswordKey", "Password");
+        [AutoRegisterConfigKey]
+        public static readonly ModConfigurationKey<bool> EnabledProxyKey = new ModConfigurationKey<bool>("EnabledProxy", "Enabled proxy");
+        [AutoRegisterConfigKey]
+        public static readonly ModConfigurationKey<string> ProxyAddressKey = new ModConfigurationKey<string>("ProxyAddress", "Proxy URL");
 
         internal static ModConfiguration? _config;
 
@@ -28,21 +34,42 @@ namespace BaruHDLIntegration
                 Error("Config Not Found!!");
                 return;
             }
+            _config.OnThisConfigurationChanged += _config_OnThisConfigurationChanged;
 
-            Harmony harmony = new Harmony("dev.baru.resonite.BaruHDLIntegration");
-            harmony.PatchAll();
+            new Harmony("dev.baru.resonite.BaruHDLIntegration").PatchAll();
+        }
+
+        private void _config_OnThisConfigurationChanged(ConfigurationChangedEvent configurationChangedEvent)
+        {
+            if (_client is not null)
+            {
+                _client = MakeClient();
+            }
         }
 
         internal static HDLControllerClient GetClient()
         {
             if (_client is not null) return _client;
+            _client = MakeClient();
 
+            return _client;
+        }
+
+        private static HDLControllerClient MakeClient()
+        {
             var address = _config!.GetValue(ControllerGrpcAddressKey) ?? "";
             var id = _config.GetValue(ApiIdKey) ?? "";
             var password = _config.GetValue(ApiPasswordKey) ?? "";
-            _client = new HDLControllerClient(address, id, password);
-
-            return _client;
+            if (_config.GetValue(EnabledProxyKey) && !string.IsNullOrEmpty(_config.GetValue(ProxyAddressKey)))
+            {
+                var handler = new HttpClientHandler
+                {
+                    Proxy = new WebProxy(_config.GetValue(ProxyAddressKey)),
+                    UseProxy = true
+                };
+                return new HDLControllerClient(address, id, password, handler);
+            }
+            return new HDLControllerClient(address, id, password, null);
         }
     }
 }
