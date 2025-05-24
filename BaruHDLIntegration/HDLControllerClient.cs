@@ -32,7 +32,6 @@ namespace BaruHDLIntegration
         /// <summary>
         /// ヘッドレスホスト一覧を取得する
         /// </summary>
-        /// <returns></returns>
         public async Task<IEnumerable<HeadlessHost>> ListHeadlessHost()
         {
             var res = await Request<ListHeadlessHostRequest, ListHeadlessHostResponse>(CONTROLLER_SERVICE, "ListHeadlessHost", new ListHeadlessHostRequest());
@@ -43,10 +42,6 @@ namespace BaruHDLIntegration
         /// <summary>
         /// Worldを指定したHeadlessHostで開く
         /// </summary>
-        /// <param name="hostId"></param>
-        /// <param name="startSettings"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
         public async Task<Hdlctrl.V1.Session> StartWorld(StartWorldRequest request)
         {
             var res = await Request<StartWorldRequest, StartWorldResponse>(CONTROLLER_SERVICE, "StartWorld", request);
@@ -62,7 +57,7 @@ namespace BaruHDLIntegration
                 {
                     Id = _id,
                     Password = _password
-                });
+                }, autoUpdateToken: false);
                 _jwtToken = res.Token;
             } catch (Exception e)
             {
@@ -72,22 +67,36 @@ namespace BaruHDLIntegration
             }
         }
 
-        private async Task<R> Request<T, R>(string service, string rpcName, T request) where T : IMessage where R : IMessage, new()
+        private async Task<R> Request<T, R>(string service, string rpcName, T request, bool autoUpdateToken = true) where T : IMessage where R : IMessage, new()
         {
-            var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseAddress}/{service}/{rpcName}");
-            if (_jwtToken is not null)
+            var json = JsonFormatter.Default.Format(request);
+            if (service == USER_SERVICE)
             {
-                req.Headers.Add("Authorization", $"Bearer {_jwtToken}");
+                ResoniteMod.Msg($"Request: {service}/{rpcName}");
             }
-            var reqBody = JsonFormatter.Default.Format(request);
-            req.Content = new StringContent(reqBody, Encoding.UTF8, "application/json");
+            else
+            {
+                ResoniteMod.Msg($"Request: {service}/{rpcName} body: {json}");
+            }
+            
+            HttpRequestMessage MakeRequest()
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseAddress}/{service}/{rpcName}");
+                if (_jwtToken is not null)
+                {
+                    req.Headers.Add("Authorization", $"Bearer {_jwtToken}");
+                }
+                req.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var res = await _client.SendAsync(req);
-            if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                return req;
+            }
+
+            var res = await _client.SendAsync(MakeRequest());
+            if (autoUpdateToken && res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
                 // tokenの有効期限切れ対策
                 await UpdateToken();
-                res = await _client.SendAsync(req);
+                res = await _client.SendAsync(MakeRequest());
             }
             res.EnsureSuccessStatusCode();
             return JsonParser.Default.Parse<R>(await res.Content.ReadAsStringAsync());

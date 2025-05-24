@@ -69,7 +69,16 @@ namespace BaruHDLIntegration
             var item = menu.AddItem("ヘッドレスでセッション開始", OfficialAssets.Graphics.Badges.Headless, null);
             item.Button.LocalPressed += (IButton button, ButtonEventData eventData) =>
             {
-                BuildWorldStartPanel(worldOrb);
+                try
+                {
+                    BuildWorldStartPanel(worldOrb);
+                }
+                catch (Exception ex)
+                {
+                    ResoniteMod.Error($"Failed to build world start panel: {ex}");
+                    NotificationMessage.SpawnTextMessage($"Failed to build world start panel: {ex}", color: new colorX(1f, 0.2f, 0.3f));
+                    return;
+                }
 
                 menu.RunSynchronously(() =>
                 {
@@ -81,11 +90,16 @@ namespace BaruHDLIntegration
         private static async void BuildWorldStartPanel(WorldOrb worldOrb)
         {
             var client = BaruHDLIntegration.GetClient();
-            var hosts = (await client.ListHeadlessHost()).Where(h => h.Status == Hdlctrl.V1.HeadlessHostStatus.Running).ToList();
-            if (hosts.Count() == 0)
+            string? hostListFetchError = null;
+            var hosts = new List<HeadlessHost>();
+            try
             {
-                ResoniteMod.Warn($"No Runnning Headless Hosts");
-                NotificationMessage.SpawnTextMessage("No Runnning Headless Hosts", color: new colorX(1f, 0.2f, 0.3f));
+                hosts = (await client.ListHeadlessHost()).Where(h => h.Status == Hdlctrl.V1.HeadlessHostStatus.Running).ToList();
+            }
+            catch (Exception ex)
+            {
+                ResoniteMod.Error($"Failed to get headless host list: {ex}");
+                hostListFetchError = $"Failed to get headless host list: {ex}";
                 return;
             }
             worldOrb.RunSynchronously(() =>
@@ -101,21 +115,36 @@ namespace BaruHDLIntegration
                 ui.FitContent(SizeFit.Disabled, SizeFit.PreferredSize);
                 ui.Style.MinHeight = 32f;
                 ui.Style.PreferredHeight = 32f;
-                
-                var selectedHostIndexField = ui.HorizontalElementWithLabel("Host", 0.4f, () =>
+
+                if (hostListFetchError != null)
                 {
-                    var hostLabels = hosts.Select(h => $"{h.Name}({h.AccountId.Substring(0, 6)})").ToList();
+                    ui.Text(hostListFetchError);
+
+                    return;
+                }
+                if (hosts.Count() == 0)
+                {
+                    ui.Text("実行中のホストがありません！\nwebからホストを開始してください");
+
+                    return;
+                }
+
+                var selectedHostIndexField = ui.HorizontalElementWithLabel("ホスト", 0.4f, () =>
+                {
+                    var hostLabels = hosts.Select(h => $"{h.Name}({h.Id.Substring(0, 6)})").ToList();
                     return BuildArrowSelector(rootSlot, ui, hostLabels);
                 });
 
                 var nameField = ui.HorizontalElementWithLabel("World.Config.Name".AsLocaleKey(), 0.4f, () => ui.TextField());
                 nameField.TargetString = worldOrb.WorldName;
 
-                var accessLevels = Enum.GetValues(typeof(SessionAccessLevel)).Cast<SessionAccessLevel>().ToList();
-                var accessLevelField = ui.HorizontalElementWithLabel("World.Config.AccessLevelHeader".AsLocaleKey(), 0.4f, () =>
-                {
-                    return BuildArrowSelector(rootSlot, ui, accessLevels.Select(a => a.ToString()).ToList(), accessLevels.Count() - 1);
-                });
+                var accessLevelField = rootSlot.AttachComponent<ValueField<SessionAccessLevel>>();
+                ui.Text("World.Config.AccessLevelHeader".AsLocaleKey("<b>{0}</b>"), bestFit: true, null);
+                SessionControlDialog.GenerateAccessLevelUI(ui, accessLevelField.Value);
+
+                var allowUsersField = ui.HorizontalElementWithLabel("現在のセッションのユーザに参加許可", 0.4f, () => ui.Checkbox(true));
+
+                var keepRolesField = ui.HorizontalElementWithLabel("現在のセッションのユーザ権限を維持する", 0.4f, () => ui.Checkbox(true));
 
                 var startBtn = ui.Button("World.Actions.StartSession".AsLocaleKey("<b>{0}</b>"));
                 startBtn.LocalPressed += async (IButton button, ButtonEventData eventData) =>
@@ -126,26 +155,38 @@ namespace BaruHDLIntegration
                     try
                     {
                         var host = hosts[selectedHostIndexField.Value.Value];
+                        var parameters = new Headless.V1.WorldStartupParameters
+                        {
+                            Name = $"{nameField.TargetString}",
+                            AccessLevel = accessLevelField.Value.Value switch
+                            {
+                                SessionAccessLevel.Private => AccessLevel.Private,
+                                SessionAccessLevel.LAN => AccessLevel.Lan,
+                                SessionAccessLevel.Contacts => AccessLevel.Contacts,
+                                SessionAccessLevel.ContactsPlus => AccessLevel.ContactsPlus,
+                                SessionAccessLevel.RegisteredUsers => AccessLevel.RegisteredUsers,
+                                SessionAccessLevel.Anyone => AccessLevel.Anyone,
+                                _ => throw new Exception("Invalid Access Level")
+                            },
+                            LoadWorldUrl = worldOrb.URL.ToString(),
+                            JoinAllowedUserIds = {
+                                allowUsersField.IsChecked
+                                ? worldOrb.World.AllUsers.Select(u => u.UserID).Where(id => id != null).ToList()
+                                : Enumerable.Empty<string>()
+                            },
+                            DefaultUserRoles = {
+                                keepRolesField.IsChecked
+                                ? worldOrb.World.AllUsers.Select(u => new DefaultUserRole { UserName = u.UserName, Role = u.Role.RoleName.Value }).ToList()
+                                : Enumerable.Empty<DefaultUserRole>()
+                            },
+                        };
                         var startReq = new Hdlctrl.V1.StartWorldRequest
                         {
                             HostId = host.Id,
-                            Parameters =
-                            {
-                                Name = nameField.TargetString,
-                                AccessLevel = accessLevels[accessLevelField.Value.Value] switch
-                                {
-                                    SessionAccessLevel.Private => AccessLevel.Private,
-                                    SessionAccessLevel.LAN => AccessLevel.Lan,
-                                    SessionAccessLevel.Contacts => AccessLevel.Contacts,
-                                    SessionAccessLevel.ContactsPlus => AccessLevel.ContactsPlus,
-                                    SessionAccessLevel.RegisteredUsers => AccessLevel.RegisteredUsers,
-                                    SessionAccessLevel.Anyone => AccessLevel.Anyone,
-                                    _ => throw new Exception("Invalid Access Level")
-                                },
-                                LoadWorldUrl = worldOrb.URL.ToString(),
-                            }
+                            Parameters = parameters,
+                            Memo = "Started by BaruHDLIntegration",
                         };
-                        
+
                         ResoniteMod.Msg($"Starting world {worldOrb.WorldName}({worldOrb.URL}) on {host.Name}({host.Id})");
                         var session = await client.StartWorld(startReq);
 
@@ -154,20 +195,19 @@ namespace BaruHDLIntegration
                         var sessionUris = session.CurrentState.ConnectUris.Select(s => new Uri(s)).ToList();
                         worldOrb.RunSynchronously(() =>
                         {
-                            worldOrb.ActiveSessionURLs = sessionUris.Count() == 0 ? new List<Uri> { new Uri($"ressession:///{session}") } : sessionUris;
+                            worldOrb.ActiveSessionURLs = sessionUris.Count() == 0 ? new List<Uri> { new Uri($"ressession:///{session.Id}") } : sessionUris;
                             rootSlot.Destroy();
                         });
                     }
                     catch (Exception ex)
                     {
                         ResoniteMod.Error($"Failed to start world: {ex}");
-                        NotificationMessage.SpawnTextMessage($"Failed to start world: {ex}", color: new colorX(1f, 0.2f, 0.3f));
-
                         worldOrb.RunSynchronously(() =>
                         {
+                            ui.Text($"Failed to start world: {ex}");
+
                             startBtn.Enabled = true;
-                            startBtn.LabelText = "World.Actions.StartSession".AsLocaleKey("<b>{0}</b>").ToString();
-                            rootSlot.Destroy();
+                            startBtn.LabelText = "World.Actions.StartSession".AsLocaleKey("<b>{0}</b>").format;
                         });
                         return;
                     };
