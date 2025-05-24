@@ -1,8 +1,5 @@
 ﻿using HarmonyLib;
 using ResoniteModLoader;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace BaruHDLIntegration
 {
@@ -13,11 +10,11 @@ namespace BaruHDLIntegration
         public override string Version => "0.0.1";
 
         [AutoRegisterConfigKey]
-        public static readonly ModConfigurationKey<string> ControllerGrpcAddressKey = new ModConfigurationKey<string>("ControllerGrpcAddress", "controller base address");
+        public static readonly ModConfigurationKey<string> ControllerGrpcAddressKey = new ModConfigurationKey<string>("ControllerGrpcAddress", "Controller base address");
         [AutoRegisterConfigKey]
-        public static readonly ModConfigurationKey<string> ApiIdKey = new ModConfigurationKey<string>("ApiIdKey", "id to access controller");
+        public static readonly ModConfigurationKey<string> ApiIdKey = new ModConfigurationKey<string>("ApiIdKey", "ID");
         [AutoRegisterConfigKey]
-        public static readonly ModConfigurationKey<string> ApiPasswordKey = new ModConfigurationKey<string>("ApiPasswordKey", "password to access controller");
+        public static readonly ModConfigurationKey<string> ApiPasswordKey = new ModConfigurationKey<string>("ApiPasswordKey", "Password");
 
         internal static ModConfiguration? _config;
 
