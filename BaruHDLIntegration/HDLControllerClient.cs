@@ -76,6 +76,22 @@ namespace BaruHDLIntegration
             });
         }
 
+        public async Task<string> UpdateUserRole(string hostId, string sessionId, string userId, string role)
+        {
+            var res = await Request<UpdateUserRoleRequest, UpdateUserRoleResponse>(CONTROLLER_SERVICE, "UpdateUserRole", new UpdateUserRoleRequest
+            {
+                HostId = hostId,
+                Parameters = new Headless.V1.UpdateUserRoleRequest
+                {
+                    SessionId = sessionId,
+                    UserId = userId,
+                    Role = role
+                }
+            });
+
+            return res.Role;
+        }
+
         public async Task UpdateToken()
         {
             try

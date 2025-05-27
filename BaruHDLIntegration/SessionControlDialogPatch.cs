@@ -93,7 +93,7 @@ namespace BaruHDLIntegration
             ui.Style.MinHeight = 24f;
             ui.Style.PreferredHeight = 24f;
 
-            ui.Spacer(30f);
+            ui.Spacer(60f);
             ui.Text("ヘッドレス操作:", bestFit: true);
 
             var saveButton = ui.Button(OfficialAssets.Graphics.Icons.Dash.SaveWorld, "World.Actions.Save".AsLocaleKey());
@@ -131,10 +131,23 @@ namespace BaruHDLIntegration
                 });
             };
 
-            if (session.CurrentState.LastSavedAt != null)
+            var adminButton = ui.Button("Adminになる");
+            adminButton.LocalPressed += async (IButton button, ButtonEventData eventData) =>
             {
-                ui.Text($"Last Saved: {session.CurrentState.LastSavedAt.ToDateTimeOffset():yyyy/MM/dd HH:mm:ss}");
-            }
+                var client = BaruHDLIntegration.GetClient();
+                adminButton.Slot.RunSynchronously(() =>
+                {
+                    adminButton.Enabled = false;
+                    adminButton.LabelText = "リクエスト中...";
+                });
+                await client.UpdateUserRole(session.HostId, session.Id, adminButton.World.LocalUser.UserID, "Admin");
+                adminButton.Slot.RunSynchronously(() =>
+                {
+                    adminButton.Enabled = true;
+                    adminButton.LabelText = "Adminになる";
+                });
+            };
+            adminButton.Enabled = panelRect.Engine.WorldManager.FocusedWorld.LocalUser.Role.RoleName != "Admin";
         }
     }
 }
