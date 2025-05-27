@@ -18,7 +18,7 @@ namespace BaruHDLIntegration
         [AutoRegisterConfigKey]
         public static readonly ModConfigurationKey<string> ApiPasswordKey = new ModConfigurationKey<string>("ApiPasswordKey", "Password");
         [AutoRegisterConfigKey]
-        public static readonly ModConfigurationKey<bool> EnabledProxyKey = new ModConfigurationKey<bool>("EnabledProxy", "Enabled proxy");
+        public static readonly ModConfigurationKey<bool> EnabledProxyKey = new ModConfigurationKey<bool>("EnabledProxy", "Enabled proxy", () => false);
         [AutoRegisterConfigKey]
         public static readonly ModConfigurationKey<string> ProxyAddressKey = new ModConfigurationKey<string>("ProxyAddress", "Proxy URL");
 
