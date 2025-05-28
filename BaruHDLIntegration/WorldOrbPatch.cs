@@ -129,10 +129,20 @@ namespace BaruHDLIntegration
                     return;
                 }
 
+                var lastSelectedHostId = BaruHDLIntegration._config?.GetValue(BaruHDLIntegration.LastSelectedHostIdKey);
+                var defaultHostIndex = 0;
+                if (!string.IsNullOrEmpty(lastSelectedHostId))
+                {
+                    defaultHostIndex = hosts.FindIndex(h => h.Id == lastSelectedHostId) switch
+                    {
+                        -1 => 0,
+                        var index => index
+                    };
+                }
                 var selectedHostIndexField = ui.HorizontalElementWithLabel("ホスト", 0.4f, () =>
                 {
                     var hostLabels = hosts.Select(h => $"{h.Name}({h.Id.Substring(0, 6)})").ToList();
-                    return BuildArrowSelector(rootSlot, ui, hostLabels);
+                    return BuildArrowSelector(rootSlot, ui, hostLabels, defaultHostIndex);
                 });
 
                 var nameField = ui.HorizontalElementWithLabel("World.Config.Name".AsLocaleKey(), 0.4f, () => ui.TextField());
@@ -143,14 +153,23 @@ namespace BaruHDLIntegration
                 SessionControlDialog.GenerateAccessLevelUI(ui, accessLevelField.Value);
 
                 var allowUsersField = ui.HorizontalElementWithLabel("現在のセッションのユーザに参加許可", 0.4f, () => ui.Checkbox(true));
+                allowUsersField.IsChecked = BaruHDLIntegration._config?.GetValue(BaruHDLIntegration.LastCheckedAllowUsersKey) ?? false;
 
                 var keepRolesField = ui.HorizontalElementWithLabel("現在のセッションのユーザ権限を維持する", 0.4f, () => ui.Checkbox(true));
+                keepRolesField.IsChecked = BaruHDLIntegration._config?.GetValue(BaruHDLIntegration.LastCheckedKeepRolesKey) ?? false;
 
                 var startBtn = ui.Button("World.Actions.StartSession".AsLocaleKey("<b>{0}</b>"));
                 startBtn.LocalPressed += async (IButton button, ButtonEventData eventData) =>
                 {
                     startBtn.Enabled = false;
                     startBtn.LabelText = "Starting...";
+
+                    if (BaruHDLIntegration._config != null)
+                    {
+                        BaruHDLIntegration._config.Set(BaruHDLIntegration.LastSelectedHostIdKey, hosts[selectedHostIndexField.Value.Value].Id);
+                        BaruHDLIntegration._config.Set(BaruHDLIntegration.LastCheckedAllowUsersKey, allowUsersField.IsChecked);
+                        BaruHDLIntegration._config.Set(BaruHDLIntegration.LastCheckedKeepRolesKey, keepRolesField.IsChecked);
+                    }
 
                     try
                     {
