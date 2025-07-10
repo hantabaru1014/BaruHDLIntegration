@@ -9,7 +9,7 @@ namespace BaruHDLIntegration
     {
         public override string Name => "BaruHDLIntegration";
         public override string Author => "hantabaru1014";
-        public override string Version => "0.0.4";
+        public override string Version => "0.0.5";
 
         [AutoRegisterConfigKey]
         public static readonly ModConfigurationKey<string> ControllerGrpcAddressKey = new ModConfigurationKey<string>("ControllerGrpcAddress", "Controller base address");

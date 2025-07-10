@@ -58,20 +58,28 @@ namespace BaruHDLIntegration
             return res.Session;
         }
 
-        public async Task SaveWorld(string hostId, string sessionId)
+        public async Task SaveWorld(string sessionId)
         {
             await Request<SaveSessionWorldRequest, SaveSessionWorldResponse>(CONTROLLER_SERVICE, "SaveSessionWorld", new SaveSessionWorldRequest
             {
-                HostId = hostId,
-                SessionId = sessionId
+                SessionId = sessionId,
+                SaveMode = SaveSessionWorldRequest.Types.SaveMode.Overwrite,
             });
         }
 
-        public async Task StopWorld(string hostId, string sessionId)
+        public async Task SaveWorldAs(string sessionId)
+        {
+            await Request<SaveSessionWorldRequest, SaveSessionWorldResponse>(CONTROLLER_SERVICE, "SaveSessionWorld", new SaveSessionWorldRequest
+            {
+                SessionId = sessionId,
+                SaveMode = SaveSessionWorldRequest.Types.SaveMode.SaveAs,
+            });
+        }
+
+        public async Task StopWorld(string sessionId)
         {
             await Request<StopSessionRequest, StopSessionResponse>(CONTROLLER_SERVICE, "StopSession", new StopSessionRequest
             {
-                HostId = hostId,
                 SessionId = sessionId
             });
         }

@@ -96,7 +96,8 @@ namespace BaruHDLIntegration
             ui.Spacer(60f);
             ui.Text("ヘッドレス操作:", bestFit: true);
 
-            var saveButton = ui.Button(OfficialAssets.Graphics.Icons.Dash.SaveWorld, "World.Actions.Save".AsLocaleKey());
+            var saveButtonLabel = session.CurrentState.CanSave ? "World.Actions.Save".AsLocaleKey() : "World.Actions.SaveAs".AsLocaleKey();
+            var saveButton = ui.Button(OfficialAssets.Graphics.Icons.Dash.SaveWorld, saveButtonLabel);
             saveButton.LocalPressed += async (IButton button, ButtonEventData eventData) =>
             {
                 var client = BaruHDLIntegration.GetClient();
@@ -105,14 +106,41 @@ namespace BaruHDLIntegration
                     saveButton.Enabled = false;
                     saveButton.LabelText = "Saving...";
                 });
-                await client.SaveWorld(session.HostId, session.Id);
-                saveButton.Slot.RunSynchronously(() =>
+                if (session.CurrentState.CanSave)
                 {
-                    saveButton.Enabled = true;
-                    saveButton.LabelText = "World.Actions.Save".AsLocaleKey().format;
-                });
+                    await client.SaveWorld(session.Id);
+                }
+                else if (session.CurrentState.CanSaveAs)
+                {
+                    await client.SaveWorldAs(session.Id);
+                }
+                var updatedSession = await client.GetSession(session.Id);
+                if (updatedSession.CurrentState.CanSave)
+                {
+                    saveButton.Slot.RunSynchronously(() =>
+                    {
+                        saveButton.Enabled = true;
+                        saveButton.LabelText = "World.Actions.Save".AsLocaleKey().format;
+                    });
+                }
+                else if (updatedSession.CurrentState.CanSaveAs)
+                {
+                    saveButton.Slot.RunSynchronously(() =>
+                    {
+                        saveButton.Enabled = true;
+                        saveButton.LabelText = "World.Actions.SaveAs".AsLocaleKey().format;
+                    });
+                }
+                else
+                {
+                    saveButton.Slot.RunSynchronously(() =>
+                    {
+                        saveButton.Enabled = false;
+                        saveButton.LabelText = "World.Actions.SaveAs".AsLocaleKey().format;
+                    });
+                }
             };
-            saveButton.Enabled = session.CurrentState.CanSave;
+            saveButton.Enabled = session.CurrentState.CanSave || session.CurrentState.CanSaveAs;
 
             var stopButton = ui.Button(OfficialAssets.Graphics.Icons.Dash.CloseWorld, "World.Actions.Close".AsLocaleKey());
             stopButton.LocalPressed += async (IButton button, ButtonEventData eventData) =>
@@ -123,7 +151,7 @@ namespace BaruHDLIntegration
                     stopButton.Enabled = false;
                     stopButton.LabelText = "Stopping...";
                 });
-                await client.StopWorld(session.HostId, session.Id);
+                await client.StopWorld(session.Id);
                 stopButton.Slot.RunSynchronously(() =>
                 {
                     stopButton.Enabled = true;
