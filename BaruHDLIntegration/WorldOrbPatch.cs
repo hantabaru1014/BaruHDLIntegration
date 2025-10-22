@@ -22,7 +22,7 @@ namespace BaruHDLIntegration
     {
         static Type TargetDisplayClass()
         {
-            // FrooxEngine.WorldOrb+<>c__DisplayClass155_0+<<ToggleContextMenu>b__0>d を探したいので、まず c__DisplayClass155_0 をあてる
+            // FrooxEngine.WorldOrb+<>c__DisplayClass156_0.<ToggleContextMenu>b__0 を探したいので、まず c__DisplayClass156_0 をあてる
             return AccessTools.FirstInner(typeof(WorldOrb), t => AccessTools.FirstInner(t, t2 => t2.Name.Contains("ToggleContextMenu")) != null);
         }
 
@@ -87,7 +87,7 @@ namespace BaruHDLIntegration
             };
         }
 
-        private static async void BuildWorldStartPanel(WorldOrb worldOrb)
+        static async void BuildWorldStartPanel(WorldOrb worldOrb)
         {
             var client = BaruHDLIntegration.GetClient();
             string? hostListFetchError = null;
@@ -234,7 +234,7 @@ namespace BaruHDLIntegration
             });
         }
 
-        private static ValueField<int> BuildArrowSelector(Slot slot, UIBuilder ui, IList<string> labels, int defaultIndex = 0)
+        static ValueField<int> BuildArrowSelector(Slot slot, UIBuilder ui, IList<string> labels, int defaultIndex = 0)
         {
             var field = slot.AttachComponent<ValueField<int>>();
             ui.HorizontalLayout(4f);

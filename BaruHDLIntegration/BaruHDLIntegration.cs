@@ -9,7 +9,7 @@ namespace BaruHDLIntegration
     {
         public override string Name => "BaruHDLIntegration";
         public override string Author => "hantabaru1014";
-        public override string Version => "0.0.5";
+        public override string Version => "0.0.6";
 
         [AutoRegisterConfigKey]
         public static readonly ModConfigurationKey<string> ControllerGrpcAddressKey = new ModConfigurationKey<string>("ControllerGrpcAddress", "Controller base address");
@@ -23,11 +23,11 @@ namespace BaruHDLIntegration
         public static readonly ModConfigurationKey<string> ProxyAddressKey = new ModConfigurationKey<string>("ProxyAddress", "Proxy URL");
 
         [AutoRegisterConfigKey]
-        public static readonly ModConfigurationKey<string> LastSelectedHostIdKey = new ModConfigurationKey<string>("_LastSelectedHostId", computeDefault: () => string.Empty, internalAccessOnly: true);
+        public static readonly ModConfigurationKey<string> LastSelectedHostIdKey = new ModConfigurationKey<string>("_LastSelectedHostId", description: "", computeDefault: () => string.Empty, internalAccessOnly: true);
         [AutoRegisterConfigKey]
-        public static readonly ModConfigurationKey<bool> LastCheckedAllowUsersKey = new ModConfigurationKey<bool>("_LastCheckedAllowUsers", computeDefault: () => false, internalAccessOnly: true);
+        public static readonly ModConfigurationKey<bool> LastCheckedAllowUsersKey = new ModConfigurationKey<bool>("_LastCheckedAllowUsers", description: "", computeDefault: () => false, internalAccessOnly: true);
         [AutoRegisterConfigKey]
-        public static readonly ModConfigurationKey<bool> LastCheckedKeepRolesKey = new ModConfigurationKey<bool>("_LastCheckedKeepRoles", computeDefault: () => false, internalAccessOnly: true);
+        public static readonly ModConfigurationKey<bool> LastCheckedKeepRolesKey = new ModConfigurationKey<bool>("_LastCheckedKeepRoles", description: "", computeDefault: () => false, internalAccessOnly: true);
 
         internal static ModConfiguration? _config;
 
