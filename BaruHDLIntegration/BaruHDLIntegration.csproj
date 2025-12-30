@@ -38,7 +38,6 @@
     <Reference Include="Renderite.Shared">
       <HintPath>$(AppPath)\Renderite.Shared.dll</HintPath>
     </Reference>
-    <Reference Include="System.Net.Http" />
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToMods)'=='true'">

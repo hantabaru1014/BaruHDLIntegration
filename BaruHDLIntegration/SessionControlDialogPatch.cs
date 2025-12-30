@@ -96,7 +96,7 @@ namespace BaruHDLIntegration
             ui.Spacer(60f);
             ui.Text("ヘッドレス操作:", bestFit: true);
 
-            var saveButtonLabel = session.CurrentState.CanSave ? "World.Actions.Save".AsLocaleKey() : "World.Actions.SaveAs".AsLocaleKey();
+            var saveButtonLabel = session.CurrentState?.CanSave == true ? "World.Actions.Save".AsLocaleKey() : "World.Actions.SaveAs".AsLocaleKey();
             var saveButton = ui.Button(OfficialAssets.Graphics.Icons.Dash.SaveWorld, saveButtonLabel);
             saveButton.LocalPressed += async (IButton button, ButtonEventData eventData) =>
             {
@@ -106,16 +106,16 @@ namespace BaruHDLIntegration
                     saveButton.Enabled = false;
                     saveButton.LabelText = "Saving...";
                 });
-                if (session.CurrentState.CanSave)
+                if (session.CurrentState?.CanSave == true)
                 {
                     await client.SaveWorld(session.Id);
                 }
-                else if (session.CurrentState.CanSaveAs)
+                else if (session.CurrentState?.CanSaveAs == true)
                 {
                     await client.SaveWorldAs(session.Id);
                 }
                 var updatedSession = await client.GetSession(session.Id);
-                if (updatedSession.CurrentState.CanSave)
+                if (updatedSession?.CurrentState?.CanSave == true)
                 {
                     saveButton.Slot.RunSynchronously(() =>
                     {
@@ -123,7 +123,7 @@ namespace BaruHDLIntegration
                         saveButton.LabelText = "World.Actions.Save".AsLocaleKey().format;
                     });
                 }
-                else if (updatedSession.CurrentState.CanSaveAs)
+                else if (updatedSession?.CurrentState?.CanSaveAs == true)
                 {
                     saveButton.Slot.RunSynchronously(() =>
                     {
@@ -140,7 +140,7 @@ namespace BaruHDLIntegration
                     });
                 }
             };
-            saveButton.Enabled = session.CurrentState.CanSave || session.CurrentState.CanSaveAs;
+            saveButton.Enabled = session.CurrentState?.CanSave == true || session.CurrentState?.CanSaveAs == true;
 
             var stopButton = ui.Button(OfficialAssets.Graphics.Icons.Dash.CloseWorld, "World.Actions.Close".AsLocaleKey());
             stopButton.LocalPressed += async (IButton button, ButtonEventData eventData) =>

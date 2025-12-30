@@ -203,10 +203,14 @@ namespace BaruHDLIntegration
 
                         ResoniteMod.Msg($"Starting world {worldOrb.WorldName}({worldOrb.URL}) on {host.Name}({host.Id})");
                         var session = await client.StartWorld(startReq);
+                        if (session == null)
+                        {
+                            throw new Exception("StartWorld returned null session");
+                        }
 
                         ResoniteMod.Msg($"Started {session.Name}");
                         NotificationMessage.SpawnTextMessage($"Started {session.Name}", color: new colorX(0.2f, 1f, 0.3f));
-                        var sessionUris = session.CurrentState.ConnectUris.Select(s => new Uri(s)).ToList();
+                        var sessionUris = session.CurrentState?.ConnectUris?.Select(s => new Uri(s)).ToList() ?? new List<Uri>();
                         worldOrb.RunSynchronously(() =>
                         {
                             worldOrb.ActiveSessionURLs = sessionUris.Count() == 0 ? new List<Uri> { new Uri($"ressession:///{session.Id}") } : sessionUris;
