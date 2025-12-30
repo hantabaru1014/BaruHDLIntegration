@@ -8,7 +8,6 @@ using FrooxEngine;
 using FrooxEngine.UIX;
 using HarmonyLib;
 using Hdlctrl.V1;
-using Headless.V1;
 using ResoniteModLoader;
 using SkyFrost.Base;
 
@@ -174,30 +173,26 @@ namespace BaruHDLIntegration
                     try
                     {
                         var host = hosts[selectedHostIndexField.Value.Value];
-                        var parameters = new Headless.V1.WorldStartupParameters
+                        var parameters = new Headless.Rpc.WorldStartupParameters
                         {
                             Name = $"{nameField.TargetString}",
                             AccessLevel = accessLevelField.Value.Value switch
                             {
-                                SessionAccessLevel.Private => AccessLevel.Private,
-                                SessionAccessLevel.LAN => AccessLevel.Lan,
-                                SessionAccessLevel.Contacts => AccessLevel.Contacts,
-                                SessionAccessLevel.ContactsPlus => AccessLevel.ContactsPlus,
-                                SessionAccessLevel.RegisteredUsers => AccessLevel.RegisteredUsers,
-                                SessionAccessLevel.Anyone => AccessLevel.Anyone,
+                                SessionAccessLevel.Private => Headless.Rpc.AccessLevel.Private,
+                                SessionAccessLevel.LAN => Headless.Rpc.AccessLevel.Lan,
+                                SessionAccessLevel.Contacts => Headless.Rpc.AccessLevel.Contacts,
+                                SessionAccessLevel.ContactsPlus => Headless.Rpc.AccessLevel.ContactsPlus,
+                                SessionAccessLevel.RegisteredUsers => Headless.Rpc.AccessLevel.RegisteredUsers,
+                                SessionAccessLevel.Anyone => Headless.Rpc.AccessLevel.Anyone,
                                 _ => throw new Exception("Invalid Access Level")
                             },
                             LoadWorldUrl = worldOrb.URL.ToString(),
-                            JoinAllowedUserIds = {
-                                allowUsersField.IsChecked
+                            JoinAllowedUserIds = allowUsersField.IsChecked
                                 ? worldOrb.World.AllUsers.Select(u => u.UserID).Where(id => id != null).ToList()
-                                : Enumerable.Empty<string>()
-                            },
-                            DefaultUserRoles = {
-                                keepRolesField.IsChecked
-                                ? worldOrb.World.AllUsers.Select(u => new DefaultUserRole { UserName = u.UserName, Role = u.Role.RoleName.Value }).ToList()
-                                : Enumerable.Empty<DefaultUserRole>()
-                            },
+                                : new List<string>(),
+                            DefaultUserRoles = keepRolesField.IsChecked
+                                ? worldOrb.World.AllUsers.Select(u => new Headless.Rpc.DefaultUserRole { UserName = u.UserName, Role = u.Role.RoleName.Value }).ToList()
+                                : new List<Headless.Rpc.DefaultUserRole>(),
                         };
                         var startReq = new Hdlctrl.V1.StartWorldRequest
                         {

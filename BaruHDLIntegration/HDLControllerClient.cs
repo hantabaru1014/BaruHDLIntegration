@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using ResoniteModLoader;
-using Google.Protobuf;
 using Hdlctrl.V1;
 
 namespace BaruHDLIntegration
@@ -13,6 +14,18 @@ namespace BaruHDLIntegration
     {
         public const string USER_SERVICE = "hdlctrl.v1.UserService";
         public const string CONTROLLER_SERVICE = "hdlctrl.v1.ControllerService";
+
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            Converters =
+            {
+                new JsonStringEnumConverter(),
+                new Rfc3339DateTimeConverter(),
+                new Rfc3339NullableDateTimeConverter()
+            }
+        };
 
         private readonly HttpClient _client;
         private readonly string _baseAddress;
@@ -36,20 +49,20 @@ namespace BaruHDLIntegration
         {
             var res = await Request<ListHeadlessHostRequest, ListHeadlessHostResponse>(CONTROLLER_SERVICE, "ListHeadlessHost", new ListHeadlessHostRequest());
 
-            return res.Hosts;
+            return res.Hosts ?? new List<HeadlessHost>();
         }
 
         /// <summary>
         /// Worldを指定したHeadlessHostで開く
         /// </summary>
-        public async Task<Hdlctrl.V1.Session> StartWorld(StartWorldRequest request)
+        public async Task<Hdlctrl.V1.Session?> StartWorld(Hdlctrl.V1.StartWorldRequest request)
         {
-            var res = await Request<StartWorldRequest, StartWorldResponse>(CONTROLLER_SERVICE, "StartWorld", request);
+            var res = await Request<Hdlctrl.V1.StartWorldRequest, Hdlctrl.V1.StartWorldResponse>(CONTROLLER_SERVICE, "StartWorld", request);
 
             return res.OpenedSession;
         }
 
-        public async Task<Hdlctrl.V1.Session> GetSession(string sessionId)
+        public async Task<Hdlctrl.V1.Session?> GetSession(string sessionId)
         {
             var res = await Request<GetSessionDetailsRequest, GetSessionDetailsResponse>(CONTROLLER_SERVICE, "GetSessionDetails", new GetSessionDetailsRequest
             {
@@ -60,25 +73,25 @@ namespace BaruHDLIntegration
 
         public async Task SaveWorld(string sessionId)
         {
-            await Request<SaveSessionWorldRequest, SaveSessionWorldResponse>(CONTROLLER_SERVICE, "SaveSessionWorld", new SaveSessionWorldRequest
+            await Request<Hdlctrl.V1.SaveSessionWorldRequest, Hdlctrl.V1.SaveSessionWorldResponse>(CONTROLLER_SERVICE, "SaveSessionWorld", new Hdlctrl.V1.SaveSessionWorldRequest
             {
                 SessionId = sessionId,
-                SaveMode = SaveSessionWorldRequest.Types.SaveMode.Overwrite,
+                SaveMode = Hdlctrl.V1.SaveSessionWorldRequest.Types.SaveMode.Overwrite,
             });
         }
 
         public async Task SaveWorldAs(string sessionId)
         {
-            await Request<SaveSessionWorldRequest, SaveSessionWorldResponse>(CONTROLLER_SERVICE, "SaveSessionWorld", new SaveSessionWorldRequest
+            await Request<Hdlctrl.V1.SaveSessionWorldRequest, Hdlctrl.V1.SaveSessionWorldResponse>(CONTROLLER_SERVICE, "SaveSessionWorld", new Hdlctrl.V1.SaveSessionWorldRequest
             {
                 SessionId = sessionId,
-                SaveMode = SaveSessionWorldRequest.Types.SaveMode.SaveAs,
+                SaveMode = Hdlctrl.V1.SaveSessionWorldRequest.Types.SaveMode.SaveAs,
             });
         }
 
         public async Task StopWorld(string sessionId)
         {
-            await Request<StopSessionRequest, StopSessionResponse>(CONTROLLER_SERVICE, "StopSession", new StopSessionRequest
+            await Request<Hdlctrl.V1.StopSessionRequest, Hdlctrl.V1.StopSessionResponse>(CONTROLLER_SERVICE, "StopSession", new Hdlctrl.V1.StopSessionRequest
             {
                 SessionId = sessionId
             });
@@ -86,10 +99,10 @@ namespace BaruHDLIntegration
 
         public async Task<string> UpdateUserRole(string hostId, string sessionId, string userId, string role)
         {
-            var res = await Request<UpdateUserRoleRequest, UpdateUserRoleResponse>(CONTROLLER_SERVICE, "UpdateUserRole", new UpdateUserRoleRequest
+            var res = await Request<Hdlctrl.V1.UpdateUserRoleRequest, Hdlctrl.V1.UpdateUserRoleResponse>(CONTROLLER_SERVICE, "UpdateUserRole", new Hdlctrl.V1.UpdateUserRoleRequest
             {
                 HostId = hostId,
-                Parameters = new Headless.V1.UpdateUserRoleRequest
+                Parameters = new Headless.Rpc.UpdateUserRoleRequest
                 {
                     SessionId = sessionId,
                     UserId = userId,
@@ -110,7 +123,8 @@ namespace BaruHDLIntegration
                     Password = _password
                 }, autoUpdateToken: false);
                 _jwtToken = res.Token;
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 ResoniteMod.Warn($"Failed to get token: {e}");
                 _jwtToken = null;
@@ -118,9 +132,9 @@ namespace BaruHDLIntegration
             }
         }
 
-        private async Task<R> Request<T, R>(string service, string rpcName, T request, bool autoUpdateToken = true) where T : IMessage where R : IMessage, new()
+        private async Task<R> Request<T, R>(string service, string rpcName, T request, bool autoUpdateToken = true)
         {
-            var json = JsonFormatter.Default.Format(request);
+            var json = JsonSerializer.Serialize(request, _jsonOptions);
             if (service == USER_SERVICE)
             {
                 ResoniteMod.Msg($"Request: {service}/{rpcName}");
@@ -129,7 +143,7 @@ namespace BaruHDLIntegration
             {
                 ResoniteMod.Msg($"Request: {service}/{rpcName} body: {json}");
             }
-            
+
             HttpRequestMessage MakeRequest()
             {
                 var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseAddress.TrimEnd('/')}/{service}/{rpcName}");
@@ -150,7 +164,9 @@ namespace BaruHDLIntegration
                 res = await _client.SendAsync(MakeRequest());
             }
             res.EnsureSuccessStatusCode();
-            return JsonParser.Default.Parse<R>(await res.Content.ReadAsStringAsync());
+
+            var responseJson = await res.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<R>(responseJson, _jsonOptions)!;
         }
     }
 }

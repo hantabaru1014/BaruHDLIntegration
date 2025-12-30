@@ -72,7 +72,7 @@ namespace BaruHDLIntegration
                     var session = await client.GetSession(world.SessionId);
                     _panelRect.Slot.RunSynchronously(() =>
                     {
-                        BuildPanel(_panelRect, session);
+                        BuildPanel(_panelRect, session!);
                     });
                 }
                 catch (Exception ex)
