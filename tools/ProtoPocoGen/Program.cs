@@ -54,7 +54,7 @@ foreach (var protoFile in protoFiles)
     var relativePath = Path.GetRelativePath(inputDir, protoFile);
     parsedFiles[relativePath] = parsed;
 
-    Console.WriteLine($"Parsed: {relativePath} ({parsed.Messages.Count} messages, {parsed.Enums.Count} enums)");
+    Console.WriteLine($"Parsed: {relativePath} ({parsed.Messages.Count} messages, {parsed.Enums.Count} enums, {parsed.Services.Count} services)");
 }
 
 // Generate C# files
@@ -68,6 +68,7 @@ foreach (var (relativePath, protoFile) in parsedFiles)
         continue;
     }
 
+    // Generate message/enum file
     var outputFileName = Path.GetFileNameWithoutExtension(relativePath) + ".g.cs";
     var outputPath = Path.Combine(outputDir, outputFileName);
 
@@ -75,6 +76,20 @@ foreach (var (relativePath, protoFile) in parsedFiles)
     File.WriteAllText(outputPath, csharpCode);
 
     Console.WriteLine($"Generated: {outputPath}");
+
+    // Generate client file if services exist
+    if (protoFile.Services.Count > 0)
+    {
+        var clientFileName = Path.GetFileNameWithoutExtension(relativePath) + ".client.g.cs";
+        var clientPath = Path.Combine(outputDir, clientFileName);
+
+        var clientCode = emitter.EmitClient(protoFile);
+        if (!string.IsNullOrEmpty(clientCode))
+        {
+            File.WriteAllText(clientPath, clientCode);
+            Console.WriteLine($"Generated client: {clientPath}");
+        }
+    }
 }
 
 Console.WriteLine("Done!");

@@ -7,7 +7,19 @@ public record ProtoFile(
     string? CSharpNamespace,
     List<string> Imports,
     List<ProtoMessage> Messages,
-    List<ProtoEnum> Enums
+    List<ProtoEnum> Enums,
+    List<ProtoService> Services
+);
+
+public record ProtoService(
+    string Name,
+    List<ProtoRpc> Rpcs
+);
+
+public record ProtoRpc(
+    string Name,
+    string RequestType,
+    string ResponseType
 );
 
 public record ProtoMessage(
@@ -52,9 +64,9 @@ public static class ProtoParser
         var package = ParsePackage(content);
         var csharpNamespace = ParseCSharpNamespace(content);
         var imports = ParseImports(content);
-        var (messages, enums) = ParseTopLevel(content);
+        var (messages, enums, services) = ParseTopLevel(content);
 
-        return new ProtoFile(package, csharpNamespace, imports, messages, enums);
+        return new ProtoFile(package, csharpNamespace, imports, messages, enums, services);
     }
 
     private static string RemoveComments(string content)
@@ -89,10 +101,11 @@ public static class ProtoParser
         return imports;
     }
 
-    private static (List<ProtoMessage>, List<ProtoEnum>) ParseTopLevel(string content)
+    private static (List<ProtoMessage>, List<ProtoEnum>, List<ProtoService>) ParseTopLevel(string content)
     {
         var messages = new List<ProtoMessage>();
         var enums = new List<ProtoEnum>();
+        var services = new List<ProtoService>();
 
         // Parse top-level blocks by tracking brace depth
         var i = 0;
@@ -127,12 +140,13 @@ public static class ProtoParser
                 continue;
             }
 
-            var serviceMatch = Regex.Match(remaining, @"^service\s+\w+\s*\{");
+            var serviceMatch = Regex.Match(remaining, @"^service\s+(\w+)\s*\{");
             if (serviceMatch.Success)
             {
-                // Skip service blocks
+                var serviceName = serviceMatch.Groups[1].Value;
                 var blockStartIndex = i + serviceMatch.Length;
                 var blockContent = ExtractBlock(content, blockStartIndex);
+                services.Add(ParseService(serviceName, blockContent));
                 i = blockStartIndex + blockContent.Length + 1;
                 continue;
             }
@@ -149,7 +163,27 @@ public static class ProtoParser
             }
         }
 
-        return (messages, enums);
+        return (messages, enums, services);
+    }
+
+    private static ProtoService ParseService(string name, string content)
+    {
+        var rpcs = new List<ProtoRpc>();
+
+        // Pattern: rpc MethodName(RequestType) returns (ResponseType) { }
+        // or: rpc MethodName(RequestType) returns (ResponseType);
+        var rpcPattern = @"rpc\s+(\w+)\s*\(\s*([\w.]+)\s*\)\s*returns\s*\(\s*([\w.]+)\s*\)\s*(?:\{\s*\}|;)";
+        var matches = Regex.Matches(content, rpcPattern);
+
+        foreach (Match match in matches)
+        {
+            var rpcName = match.Groups[1].Value;
+            var requestType = match.Groups[2].Value;
+            var responseType = match.Groups[3].Value;
+            rpcs.Add(new ProtoRpc(rpcName, requestType, responseType));
+        }
+
+        return new ProtoService(name, rpcs);
     }
 
     private static string ExtractBlock(string content, int startIndex)

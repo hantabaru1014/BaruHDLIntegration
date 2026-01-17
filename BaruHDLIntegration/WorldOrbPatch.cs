@@ -93,7 +93,7 @@ namespace BaruHDLIntegration
             var hosts = new List<HeadlessHost>();
             try
             {
-                hosts = (await client.ListHeadlessHost()).Where(h => h.Status == Hdlctrl.V1.HeadlessHostStatus.Running).ToList();
+                hosts = ((await client.ListHeadlessHostAsync(new ListHeadlessHostRequest())).Hosts ?? new List<HeadlessHost>()).Where(h => h.Status == Hdlctrl.V1.HeadlessHostStatus.Running).ToList();
             }
             catch (Exception ex)
             {
@@ -202,7 +202,7 @@ namespace BaruHDLIntegration
                         };
 
                         ResoniteMod.Msg($"Starting world {worldOrb.WorldName}({worldOrb.URL}) on {host.Name}({host.Id})");
-                        var session = await client.StartWorld(startReq);
+                        var session = (await client.StartWorldAsync(startReq)).OpenedSession;
                         if (session == null)
                         {
                             throw new Exception("StartWorld returned null session");

@@ -2,6 +2,7 @@ using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.UIX;
 using HarmonyLib;
+using Hdlctrl.V1;
 using ResoniteModLoader;
 using System;
 using System.Collections.Generic;
@@ -130,7 +131,7 @@ namespace BaruHDLIntegration
                 ResoniteMod.Msg($"Getting session details for world: {world.Name}({world.SessionId})");
                 try
                 {
-                    var session = await client.GetSession(world.SessionId);
+                    var session = (await client.GetSessionDetailsAsync(new GetSessionDetailsRequest { SessionId = world.SessionId })).Session;
                     _hdlContentRoot?.RunSynchronously(() =>
                     {
                         if (_hdlContentRoot != null && !_hdlContentRoot.IsDestroyed)
@@ -185,13 +186,13 @@ namespace BaruHDLIntegration
                 });
                 if (session.CurrentState?.CanSave == true)
                 {
-                    await client.SaveWorld(session.Id);
+                    await client.SaveSessionWorldAsync(new SaveSessionWorldRequest { SessionId = session.Id, SaveMode = SaveSessionWorldRequest.Types.SaveMode.Overwrite });
                 }
                 else if (session.CurrentState?.CanSaveAs == true)
                 {
-                    await client.SaveWorldAs(session.Id);
+                    await client.SaveSessionWorldAsync(new SaveSessionWorldRequest { SessionId = session.Id, SaveMode = SaveSessionWorldRequest.Types.SaveMode.SaveAs });
                 }
-                var updatedSession = await client.GetSession(session.Id);
+                var updatedSession = (await client.GetSessionDetailsAsync(new GetSessionDetailsRequest { SessionId = session.Id })).Session;
                 if (updatedSession?.CurrentState?.CanSave == true)
                 {
                     saveButton.Slot.RunSynchronously(() =>
@@ -228,7 +229,7 @@ namespace BaruHDLIntegration
                     stopButton.Enabled = false;
                     stopButton.LabelText = "Stopping...";
                 });
-                await client.StopWorld(session.Id);
+                await client.StopSessionAsync(new StopSessionRequest { SessionId = session.Id });
                 stopButton.Slot.RunSynchronously(() =>
                 {
                     stopButton.Enabled = true;
@@ -245,7 +246,7 @@ namespace BaruHDLIntegration
                     adminButton.Enabled = false;
                     adminButton.LabelText = "リクエスト中...";
                 });
-                await client.UpdateUserRole(session.HostId, session.Id, adminButton.World.LocalUser.UserID, "Admin");
+                await client.UpdateUserRoleAsync(new UpdateUserRoleRequest { HostId = session.HostId, Parameters = new Headless.Rpc.UpdateUserRoleRequest { SessionId = session.Id, UserId = adminButton.World.LocalUser.UserID, Role = "Admin" } });
                 adminButton.Slot.RunSynchronously(() =>
                 {
                     adminButton.Enabled = true;
