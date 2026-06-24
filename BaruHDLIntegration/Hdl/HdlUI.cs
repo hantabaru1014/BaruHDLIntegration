@@ -192,9 +192,41 @@ namespace BaruHDLIntegration.Hdl
         }
 
         /// <summary>
-        /// ユーザーの前にフローティングパネル(モーダル)を出す。閉じる際は rootSlot.Destroy() を呼ぶこと
+        /// 「ダッシュボードで開く」トグルが ON かを返す
+        /// </summary>
+        internal static bool OpenModalsInDashboard()
+            => BaruHDLIntegration._config?.GetValue(BaruHDLIntegration.OpenModalsInDashboardKey) ?? false;
+
+        /// <summary>
+        /// モーダルを開くべき world を決定する。
+        /// ダッシュボードモード時は SessionControlDialog のある userspace world、
+        /// それ以外は invoker の focused world (= ユーザの居るワールド)
+        /// </summary>
+        internal static World ResolveModalWorld(World invokerWorld)
+        {
+            if (OpenModalsInDashboard())
+            {
+                var overlayParent = SessionControlDialogPatch.GetDashboardOverlayParent();
+                if (overlayParent != null) return overlayParent.World;
+            }
+            return invokerWorld.Engine.WorldManager.FocusedWorld ?? invokerWorld;
+        }
+
+        /// <summary>
+        /// モーダル(タイトル+スクロール可能なコンテンツ)を構築する。閉じる際は rootSlot.Destroy() を呼ぶ。
+        /// ダッシュボードトグル ON 時はダッシュボード内オーバーレイ、それ以外はワールド配置のフローティング
         /// </summary>
         internal static (Slot rootSlot, UIBuilder ui) BuildModalPanel(World world, string title, float2 size)
+        {
+            var overlayParent = SessionControlDialogPatch.GetDashboardOverlayParent();
+            if (OpenModalsInDashboard() && overlayParent != null && overlayParent.World == world)
+            {
+                return BuildDashboardOverlayPanel(overlayParent, title);
+            }
+            return BuildWorldFloatingPanel(world, title, size);
+        }
+
+        private static (Slot rootSlot, UIBuilder ui) BuildWorldFloatingPanel(World world, string title, float2 size)
         {
             var rootSlot = world.AddSlot(title, persistent: false);
             rootSlot.PositionInFrontOfUser(float3.Backward);
@@ -202,6 +234,61 @@ namespace BaruHDLIntegration.Hdl
             rootSlot.LocalScale *= 0.0005f;
             RadiantUI_Constants.SetupEditorStyle(ui);
             rootSlot.SetContainerTitle(title);
+            ui.ScrollArea();
+            ui.VerticalLayout(4f, 0f);
+            ui.FitContent(SizeFit.Disabled, SizeFit.PreferredSize);
+            ui.Style.MinHeight = 32f;
+            ui.Style.PreferredHeight = 32f;
+            return (rootSlot, ui);
+        }
+
+        private static (Slot rootSlot, UIBuilder ui) BuildDashboardOverlayPanel(Slot parent, string title)
+        {
+            // オーバーレイ root: タブ全体を覆う
+            var rootSlot = parent.AddSlot("HdlModal");
+            var rootRt = rootSlot.AttachComponent<RectTransform>();
+            rootRt.AnchorMin.Value = float2.Zero;
+            rootRt.AnchorMax.Value = float2.One;
+
+            // 背景 (半透明黒、後ろの操作をブロックするためにも image を貼る)
+            var bgSlot = rootSlot.AddSlot("Backdrop");
+            var bgRt = bgSlot.AttachComponent<RectTransform>();
+            bgRt.AnchorMin.Value = float2.Zero;
+            bgRt.AnchorMax.Value = float2.One;
+            var bgImage = bgSlot.AttachComponent<Image>();
+            bgImage.Tint.Value = new colorX(0f, 0f, 0f, 0.7f);
+
+            // 中央のモーダルパネル
+            var panelSlot = rootSlot.AddSlot("Panel");
+            var panelRt = panelSlot.AttachComponent<RectTransform>();
+            panelRt.AnchorMin.Value = new float2(0.06f, 0.06f);
+            panelRt.AnchorMax.Value = new float2(0.94f, 0.94f);
+            var panelImage = panelSlot.AttachComponent<Image>();
+            panelImage.Tint.Value = RadiantUI_Constants.BG_COLOR;
+
+            var ui = new UIBuilder(panelSlot);
+            RadiantUI_Constants.SetupEditorStyle(ui);
+            ui.VerticalLayout(4f, 8f);
+
+            // タイトルバー
+            ui.Style.MinHeight = 48f;
+            ui.Style.PreferredHeight = 48f;
+            ui.Style.FlexibleHeight = -1f;
+            ui.HorizontalLayout(8f, 8f);
+            ui.Style.FlexibleWidth = 1f;
+            ui.Style.MinWidth = -1f;
+            var titleText = ui.Text(title, bestFit: true, Alignment.MiddleLeft);
+            titleText.Color.Value = RadiantUI_Constants.Neutrals.LIGHT;
+            ui.Style.FlexibleWidth = -1f;
+            ui.Style.MinWidth = 80f;
+            var closeBtn = ui.Button("✕");
+            closeBtn.LocalPressed += (b, e) => rootSlot.Destroy();
+            ui.NestOut();
+
+            // スクロール可能なコンテンツ (ワールド配置時と同じ初期スタイル)
+            ui.Style.MinHeight = -1f;
+            ui.Style.PreferredHeight = -1f;
+            ui.Style.FlexibleHeight = 1f;
             ui.ScrollArea();
             ui.VerticalLayout(4f, 0f);
             ui.FitContent(SizeFit.Disabled, SizeFit.PreferredSize);

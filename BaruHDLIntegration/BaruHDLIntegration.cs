@@ -28,6 +28,8 @@ namespace BaruHDLIntegration
         public static readonly ModConfigurationKey<bool> LastCheckedAllowUsersKey = new ModConfigurationKey<bool>("_LastCheckedAllowUsers", description: "", computeDefault: () => false, internalAccessOnly: true);
         [AutoRegisterConfigKey]
         public static readonly ModConfigurationKey<bool> LastCheckedKeepRolesKey = new ModConfigurationKey<bool>("_LastCheckedKeepRoles", description: "", computeDefault: () => false, internalAccessOnly: true);
+        [AutoRegisterConfigKey]
+        public static readonly ModConfigurationKey<bool> OpenModalsInDashboardKey = new ModConfigurationKey<bool>("_OpenModalsInDashboard", description: "", computeDefault: () => false, internalAccessOnly: true);
 
         internal static ModConfiguration? _config;
 

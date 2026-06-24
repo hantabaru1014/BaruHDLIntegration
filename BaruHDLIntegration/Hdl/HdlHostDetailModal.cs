@@ -25,7 +25,7 @@ namespace BaruHDLIntegration.Hdl
 
         internal static void Open(World invokerWorld, HeadlessHost host, Action? onChanged = null)
         {
-            var world = invokerWorld.Engine.WorldManager.FocusedWorld ?? invokerWorld;
+            var world = HdlUI.ResolveModalWorld(invokerWorld);
             world.RunSynchronously(() =>
             {
                 var (rootSlot, ui) = HdlUI.BuildModalPanel(world, $"ホスト: {host.Name}", new float2(1100f, 880f));

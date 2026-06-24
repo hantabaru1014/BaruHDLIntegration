@@ -20,9 +20,18 @@ namespace BaruHDLIntegration
         }
 
         private static Slot? _hdlContentHost;
+        private static Slot? _hdlTabRoot;
+        private static Checkbox? _openInDashboardToggle;
         private static readonly Button?[] _subTabButtons = new Button?[Enum.GetValues(typeof(SubTab)).Length];
         private static SubTab _activeSubTab = SubTab.Current;
         private static int _hdlTabValue;
+
+        /// <summary>
+        /// モーダルをダッシュボード内オーバーレイで開く時の親スロット。
+        /// 未初期化 / 破棄済みの場合は null (HdlUI.BuildModalPanel がワールド配置にフォールバックする)
+        /// </summary>
+        internal static Slot? GetDashboardOverlayParent()
+            => (_hdlTabRoot != null && !_hdlTabRoot.IsDestroyed) ? _hdlTabRoot : null;
 
         private static readonly FieldInfo _activeTabField = AccessTools.Field(typeof(SessionControlDialog), "ActiveTab");
         private static readonly FieldInfo _tabButtonsField = AccessTools.Field(typeof(SessionControlDialog), "_tabButtons");
@@ -90,24 +99,46 @@ namespace BaruHDLIntegration
         }
 
         /// <summary>
-        /// ヘッドレスタブのルート: 左サイドバー(縦サブタブ)+右コンテンツの2カラム構成
+        /// ヘッドレスタブのルート: 左サイドバー(縦サブタブ+下部トグル)+右コンテンツの2カラム構成
         /// </summary>
         private static void BuildHdlTabRoot(UIBuilder ui)
         {
             RadiantUI_Constants.SetupDefaultStyle(ui);
+            _hdlTabRoot = ui.Root;
 
             var cols = ui.SplitHorizontally(0.18f, 0.82f);
 
             var sideUi = new UIBuilder(cols[0]);
             RadiantUI_Constants.SetupDefaultStyle(sideUi);
-            sideUi.VerticalLayout(4f, 4f, childAlignment: Alignment.TopCenter, forceExpandHeight: false);
+            sideUi.VerticalLayout(4f, 4f, forceExpandHeight: false);
+
+            // 上から積むタブボタン
             sideUi.Style.MinHeight = 36f;
             sideUi.Style.PreferredHeight = 36f;
             sideUi.Style.FlexibleHeight = -1f;
-
             _subTabButtons[(int)SubTab.Hosts] = HdlUI.BuildSubTabButton(sideUi, "ホスト", () => SwitchSubTab(SubTab.Hosts));
             _subTabButtons[(int)SubTab.Sessions] = HdlUI.BuildSubTabButton(sideUi, "セッション", () => SwitchSubTab(SubTab.Sessions));
             _subTabButtons[(int)SubTab.Current] = HdlUI.BuildSubTabButton(sideUi, "現在のセッション", () => SwitchSubTab(SubTab.Current));
+
+            // 残り高さを占有するスペーサでトグルを最下部に押し下げる
+            sideUi.Style.MinHeight = -1f;
+            sideUi.Style.PreferredHeight = -1f;
+            sideUi.Style.FlexibleHeight = 1f;
+            sideUi.Empty("Spacer");
+
+            // 最下部のトグル: ON でダッシュボード内モーダル、OFF でワールド配置モーダル
+            sideUi.Style.MinHeight = 36f;
+            sideUi.Style.PreferredHeight = 36f;
+            sideUi.Style.FlexibleHeight = -1f;
+            sideUi.HorizontalLayout(4f, 0f, 4f, 0f, 4f);
+            sideUi.Style.MinWidth = -1f;
+            sideUi.Style.FlexibleWidth = 1f;
+            sideUi.Text("ダッシュボードで開く", bestFit: true, Alignment.MiddleLeft);
+            sideUi.Style.FlexibleWidth = -1f;
+            sideUi.Style.MinWidth = 36f;
+            _openInDashboardToggle = sideUi.Checkbox(
+                BaruHDLIntegration._config?.GetValue(BaruHDLIntegration.OpenModalsInDashboardKey) ?? false);
+            sideUi.NestOut();
 
             UpdateSubTabButtonColors();
 
@@ -154,7 +185,7 @@ namespace BaruHDLIntegration
         }
 
         /// <summary>
-        /// タブボタンの色を更新（HDLタブのハイライト対応）
+        /// タブボタンの色を更新（HDLタブのハイライト対応）。トグル状態の config 同期もここで行う
         /// </summary>
         [HarmonyPatch("OnCommonUpdate")]
         [HarmonyPostfix]
@@ -171,6 +202,16 @@ namespace BaruHDLIntegration
                 tabButtons[hdlTabIndex]?.SetColors(isActive
                     ? RadiantUI_Constants.TAB_ACTIVE_BACKGROUND_COLOR
                     : RadiantUI_Constants.TAB_INACTIVE_BACKGROUND_COLOR);
+            }
+
+            // トグル状態の変更を config に反映 (HDLタブが表示中のみチェック)
+            if (_openInDashboardToggle != null && !_openInDashboardToggle.IsDestroyed && BaruHDLIntegration._config != null)
+            {
+                var saved = BaruHDLIntegration._config.GetValue(BaruHDLIntegration.OpenModalsInDashboardKey);
+                if (saved != _openInDashboardToggle.IsChecked)
+                {
+                    BaruHDLIntegration._config.Set(BaruHDLIntegration.OpenModalsInDashboardKey, _openInDashboardToggle.IsChecked);
+                }
             }
         }
 

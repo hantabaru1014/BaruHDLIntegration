@@ -24,7 +24,7 @@ namespace BaruHDLIntegration.Hdl
 
         internal static void Open(World invokerWorld, Action? onChanged = null)
         {
-            var world = invokerWorld.Engine.WorldManager.FocusedWorld ?? invokerWorld;
+            var world = HdlUI.ResolveModalWorld(invokerWorld);
             invokerWorld.Coroutines.StartBackgroundTask(async () =>
             {
                 List<HeadlessAccount>? accounts = null;
