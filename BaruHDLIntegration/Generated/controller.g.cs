@@ -272,6 +272,10 @@ public class CreateHeadlessAccountResponse
 
 public class ListHeadlessAccountsRequest
 {
+    [JsonPropertyName("page")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PageRequest? Page { get; set; }
+
 }
 
 public class ListHeadlessAccountsResponse
@@ -279,6 +283,10 @@ public class ListHeadlessAccountsResponse
     [JsonPropertyName("accounts")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<HeadlessAccount>? Accounts { get; set; } = new();
+
+    [JsonPropertyName("page")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PageResponse? Page { get; set; }
 
 }
 
@@ -592,8 +600,33 @@ public class SearchWorldsResponse
 
 }
 
+public class GetOwnWorldsRequest
+{
+    [JsonPropertyName("hostId")]
+    public string HostId { get; set; } = "";
+
+    [JsonPropertyName("pageIndex")]
+    public int PageIndex { get; set; }
+
+}
+
+public class GetOwnWorldsResponse
+{
+    [JsonPropertyName("records")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<SearchWorldsResponse.Types.WorldRecord>? Records { get; set; } = new();
+
+    [JsonPropertyName("hasMore")]
+    public bool HasMore { get; set; }
+
+}
+
 public class ListHeadlessHostRequest
 {
+    [JsonPropertyName("page")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PageRequest? Page { get; set; }
+
 }
 
 public class ListHeadlessHostResponse
@@ -601,6 +634,10 @@ public class ListHeadlessHostResponse
     [JsonPropertyName("hosts")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<HeadlessHost>? Hosts { get; set; } = new();
+
+    [JsonPropertyName("page")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PageResponse? Page { get; set; }
 
 }
 
@@ -659,6 +696,10 @@ public class SearchSessionsRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Types.SearchParameters? Parameters { get; set; }
 
+    [JsonPropertyName("page")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PageRequest? Page { get; set; }
+
 }
 
 public class SearchSessionsResponse
@@ -666,6 +707,10 @@ public class SearchSessionsResponse
     [JsonPropertyName("sessions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<Session>? Sessions { get; set; } = new();
+
+    [JsonPropertyName("page")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PageResponse? Page { get; set; }
 
 }
 
@@ -779,6 +824,26 @@ public class SaveSessionWorldResponse
 
 }
 
+public class PrepareSessionWorldDownloadRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("format")]
+    public WorldBinaryFormat Format { get; set; }
+
+}
+
+public class PrepareSessionWorldDownloadResponse
+{
+    [JsonPropertyName("downloadUrl")]
+    public string DownloadUrl { get; set; } = "";
+
+    [JsonPropertyName("filename")]
+    public string Filename { get; set; } = "";
+
+}
+
 public class InviteUserRequest
 {
     [JsonPropertyName("hostId")]
@@ -869,6 +934,29 @@ public class ListUsersInSessionResponse
     [JsonPropertyName("users")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<UserInSession>? Users { get; set; } = new();
+
+}
+
+public class PageRequest
+{
+    [JsonPropertyName("pageIndex")]
+    public int PageIndex { get; set; }
+
+    [JsonPropertyName("pageSize")]
+    public int PageSize { get; set; }
+
+}
+
+public class PageResponse
+{
+    [JsonPropertyName("totalCount")]
+    public int TotalCount { get; set; }
+
+    [JsonPropertyName("pageIndex")]
+    public int PageIndex { get; set; }
+
+    [JsonPropertyName("pageSize")]
+    public int PageSize { get; set; }
 
 }
 

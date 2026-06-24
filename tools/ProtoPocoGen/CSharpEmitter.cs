@@ -472,7 +472,13 @@ public class CSharpEmitter
         }
 
         // Convert remaining SCREAMING_SNAKE_CASE to PascalCase
-        return ToPascalCase(name.ToLower());
+        var pascal = ToPascalCase(name.ToLower());
+        // C# 識別子は数字で始められないので、先頭が数字の場合は "_" を補う
+        if (pascal.Length > 0 && char.IsDigit(pascal[0]))
+        {
+            pascal = "_" + pascal;
+        }
+        return pascal;
     }
 
     private static string ToScreamingSnakeCase(string name)
