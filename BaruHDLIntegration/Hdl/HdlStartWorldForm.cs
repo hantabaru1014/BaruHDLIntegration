@@ -37,9 +37,15 @@ namespace BaruHDLIntegration.Hdl
     /// </summary>
     internal static class HdlStartWorldForm
     {
+        // ワールド指定ソースのラベル: 先頭が URL、それ以降がテンプレート (_worldTemplatePresetNames と対応)
+        private static readonly List<string> _worldSourceLabels = new() { "URL", "Grid", "Platform", "Blank" };
+        // controller フロントエンドと同じテンプレート preset 名 (Resonite headless が認識する識別子)
+        private static readonly string[] _worldTemplatePresetNames = { "grid", "platform", "blank" };
+
+
         internal static void Open(World invokerWorld, StartWorldFormContext ctx)
         {
-            var world = invokerWorld.Engine.WorldManager.FocusedWorld ?? invokerWorld;
+            var world = HdlUI.ResolveModalWorld(invokerWorld);
             invokerWorld.Coroutines.StartBackgroundTask(async () =>
             {
                 List<HeadlessHost>? hosts = null;
@@ -97,7 +103,13 @@ namespace BaruHDLIntegration.Hdl
             var nameField = ui.HorizontalElementWithLabel("Name", 0.4f, () => ui.TextField());
             nameField.TargetString = ctx.DefaultName;
 
-            // ワールドURLは編集可能(空から開始するケースに対応)
+            // ワールドの指定方法: URL / 組み込みテンプレート
+            // 初期選択: ctx.LoadWorldUrl があれば URL、なければ Grid テンプレート
+            var initialSourceIndex = string.IsNullOrEmpty(ctx.LoadWorldUrl) ? 1 : 0;
+            var worldSourceField = ui.HorizontalElementWithLabel("ワールド指定", 0.4f, () =>
+                HdlUI.BuildArrowSelector(rootSlot, ui, _worldSourceLabels, initialSourceIndex));
+
+            // ワールドURLは編集可能(空から開始するケースに対応)。テンプレート選択時は無視される
             var worldUrlField = ui.HorizontalElementWithLabel("World URL", 0.4f, () => ui.TextField());
             worldUrlField.TargetString = ctx.LoadWorldUrl;
 
@@ -155,12 +167,18 @@ namespace BaruHDLIntegration.Hdl
                         ? ctx.AvailableUserRoles
                         : new List<Headless.Rpc.DefaultUserRole>();
 
+                    // ワールドソースに応じて loadWorldUrl / loadWorldPresetName のどちらか一方をセット
+                    var sourceIndex = worldSourceField.Value.Value;
+                    var presetName = sourceIndex >= 1 && sourceIndex - 1 < _worldTemplatePresetNames.Length
+                        ? _worldTemplatePresetNames[sourceIndex - 1]
+                        : null;
                     var parameters = new Headless.Rpc.WorldStartupParameters
                     {
                         Name = nameField.TargetString,
                         Description = descField.TargetString,
                         AccessLevel = ConvertFromSession(accessLevelField.Value.Value),
-                        LoadWorldUrl = worldUrlField.TargetString,
+                        LoadWorldUrl = presetName == null ? worldUrlField.TargetString : null,
+                        LoadWorldPresetName = presetName,
                         MaxUsers = int.TryParse(maxUsersField.TargetString, out var mu) ? mu : (int?)null,
                         Tags = tagsField.TargetString.Split(',').Select(t => t.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList(),
                         JoinAllowedUserIds = allowedIds,
