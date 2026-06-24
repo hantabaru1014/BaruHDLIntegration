@@ -16,7 +16,6 @@ namespace BaruHDLIntegration.Hdl
     {
         private static readonly string[] _headers = { "Name", "Host", "Status", "Access", "Users" };
         private static readonly float[] _weights = { 30f, 20f, 12f, 16f, 12f };
-        private const int DefaultPageSize = 50;
 
         private static readonly (string Label, SessionStatus? Value)[] _statusFilters = new (string, SessionStatus?)[]
         {
@@ -27,17 +26,14 @@ namespace BaruHDLIntegration.Hdl
             ("Crashed", SessionStatus.Crashed),
         };
 
-        private static Slot? _contentRoot;
         private static int _refreshGeneration;
         private static int _pageIndex = 0;
-        private static int _pageSize = DefaultPageSize;
         private static int _totalCount = 0;
 
         private static List<HeadlessHost> _hostsCache = new();
 
         internal static void Build(Slot contentRoot)
         {
-            _contentRoot = contentRoot;
             var gen = ++_refreshGeneration;
 
             ValueField<int> statusSelector = null!;
@@ -129,8 +125,7 @@ namespace BaruHDLIntegration.Hdl
             var labels = new List<string> { "All" };
             foreach (var h in hosts)
             {
-                var name = string.IsNullOrEmpty(h.Name) ? h.Id.Substring(0, Math.Min(8, h.Id.Length)) : h.Name;
-                labels.Add(name);
+                labels.Add(HdlUI.FormatHostDisplayName(h));
             }
             return labels;
         }
@@ -162,7 +157,7 @@ namespace BaruHDLIntegration.Hdl
                     if (_hostsCache.Count == 0)
                     {
                         // ホスト一覧は全件取得しておきたいので大きめのページサイズ
-                        var hostsRes = await client.ListHeadlessHostAsync(new ListHeadlessHostRequest { Page = new PageRequest { PageIndex = 0, PageSize = 200 } });
+                        var hostsRes = await client.ListHeadlessHostAsync(new ListHeadlessHostRequest { Page = new PageRequest { PageIndex = 0, PageSize = HdlUI.FetchAllPageSize } });
                         _hostsCache = hostsRes.Hosts ?? new List<HeadlessHost>();
                     }
 
@@ -179,7 +174,7 @@ namespace BaruHDLIntegration.Hdl
                             HostId = hostIdFilter,
                             Status = statusFilter,
                         },
-                        Page = new PageRequest { PageIndex = _pageIndex, PageSize = _pageSize },
+                        Page = new PageRequest { PageIndex = _pageIndex, PageSize = HdlUI.DefaultListPageSize },
                     };
                     var res = await client.SearchSessionsAsync(req);
                     sessions = res.Sessions ?? new List<Hdlctrl.V1.Session>();
@@ -199,7 +194,6 @@ namespace BaruHDLIntegration.Hdl
                     if (pageInfo != null)
                     {
                         _pageIndex = pageInfo.PageIndex;
-                        _pageSize = pageInfo.PageSize > 0 ? pageInfo.PageSize : _pageSize;
                         _totalCount = pageInfo.TotalCount;
                     }
 
@@ -221,10 +215,16 @@ namespace BaruHDLIntegration.Hdl
                     }
                     else
                     {
+                        var hostById = _hostsCache
+                            .Where(h => !string.IsNullOrEmpty(h.Id))
+                            .GroupBy(h => h.Id)
+                            .ToDictionary(g => g.Key, g => g.First());
                         for (int i = 0; i < sessions.Count; i++)
                         {
                             var session = sessions[i];
-                            var hostName = _hostsCache.FirstOrDefault(h => h.Id == session.HostId)?.Name ?? session.HostId.Substring(0, Math.Min(8, session.HostId.Length));
+                            var hostName = hostById.TryGetValue(session.HostId, out var hostMatch)
+                                ? HdlUI.FormatHostDisplayName(hostMatch)
+                                : (session.HostId ?? "").Substring(0, Math.Min(8, (session.HostId ?? "").Length));
                             var access = session.CurrentState?.AccessLevel.ToString() ?? session.StartupParameters?.AccessLevel.ToString() ?? "-";
                             var users = session.CurrentState != null ? $"{session.CurrentState.UsersCount}/{session.CurrentState.MaxUsers}" : "-";
 
@@ -252,7 +252,7 @@ namespace BaruHDLIntegration.Hdl
                         footerRoot.DestroyChildren();
                         var footerUi = new UIBuilder(footerRoot);
                         RadiantUI_Constants.SetupDefaultStyle(footerUi);
-                        HdlUI.BuildPaginationFooter(footerUi, _pageIndex, _pageSize, _totalCount, newPage =>
+                        HdlUI.BuildPaginationFooter(footerUi, _pageIndex, HdlUI.DefaultListPageSize, _totalCount, newPage =>
                         {
                             _pageIndex = newPage;
                             Refresh(listRoot, footerRoot, statusSelector, hostSelector);

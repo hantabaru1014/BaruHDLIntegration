@@ -145,7 +145,7 @@ namespace BaruHDLIntegration.Hdl
                             listUi.Text("Role:", bestFit: true, Alignment.MiddleLeft);
                             listUi.Style.MinWidth = -1f;
                             listUi.Style.FlexibleWidth = 100f;
-                            var roleSelector = HdlUI.BuildArrowSelector(rootSlot, listUi, _roles.ToList(), Array.IndexOf(_roles, user.Role) is int idx && idx >= 0 ? idx : 0);
+                            var roleSelector = HdlUI.BuildArrowSelector(rootSlot, listUi, _roles.ToList(), Math.Max(0, Array.IndexOf(_roles, user.Role)));
                             listUi.Style.FlexibleWidth = -1f;
                             listUi.Style.MinWidth = 100f;
                             var setRoleBtn = listUi.Button("Role変更");

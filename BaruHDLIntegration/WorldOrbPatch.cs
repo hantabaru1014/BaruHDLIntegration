@@ -104,7 +104,7 @@ namespace BaruHDLIntegration
                     var sessionUris = session.CurrentState?.ConnectUris?.Select(s => new Uri(s)).ToList() ?? new List<Uri>();
                     worldOrb.RunSynchronously(() =>
                     {
-                        worldOrb.ActiveSessionURLs = sessionUris.Count() == 0
+                        worldOrb.ActiveSessionURLs = sessionUris.Count == 0
                             ? new List<Uri> { new Uri($"ressession:///{session.Id}") }
                             : sessionUris;
                     });

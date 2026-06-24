@@ -48,7 +48,7 @@ namespace BaruHDLIntegration.Hdl
                 {
                     var client = BaruHDLIntegration.GetClient();
                     // ホスト一覧は全件取得して稼働中のみ抽出するため大きめのページサイズ
-                    var res = await client.ListHeadlessHostAsync(new ListHeadlessHostRequest { Page = new PageRequest { PageIndex = 0, PageSize = 200 } });
+                    var res = await client.ListHeadlessHostAsync(new ListHeadlessHostRequest { Page = new PageRequest { PageIndex = 0, PageSize = HdlUI.FetchAllPageSize } });
                     hosts = (res.Hosts ?? new List<HeadlessHost>())
                         .Where(h => h.Status == HeadlessHostStatus.Running)
                         .ToList();
@@ -84,16 +84,13 @@ namespace BaruHDLIntegration.Hdl
             var defaultHostIndex = 0;
             if (!string.IsNullOrEmpty(lastSelectedHostId))
             {
-                defaultHostIndex = hosts.FindIndex(h => h.Id == lastSelectedHostId) switch
-                {
-                    -1 => 0,
-                    var index => index
-                };
+                var foundIndex = hosts.FindIndex(h => h.Id == lastSelectedHostId);
+                if (foundIndex >= 0) defaultHostIndex = foundIndex;
             }
 
             var selectedHostIndexField = ui.HorizontalElementWithLabel("ホスト", 0.4f, () =>
             {
-                var hostLabels = hosts.Select(h => $"{h.Name}({h.Id.Substring(0, Math.Min(6, h.Id.Length))})").ToList();
+                var hostLabels = hosts.Select(h => $"{h.Name}({(h.Id ?? "").Substring(0, Math.Min(6, (h.Id ?? "").Length))})").ToList();
                 return HdlUI.BuildArrowSelector(rootSlot, ui, hostLabels, defaultHostIndex);
             });
 

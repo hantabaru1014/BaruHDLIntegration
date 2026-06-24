@@ -8,12 +8,48 @@ using Elements.Assets;
 using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.UIX;
+using Hdlctrl.V1;
 using ResoniteModLoader;
 
 namespace BaruHDLIntegration.Hdl
 {
     internal static class HdlUI
     {
+        /// <summary>
+        /// 「全件取得したい」ときに使うページサイズ。
+        /// controller 側の page size 上限は controller#92 時点で 200。
+        /// </summary>
+        internal const int FetchAllPageSize = 200;
+
+        /// <summary>
+        /// 一覧表示のデフォルトページサイズ
+        /// </summary>
+        internal const int DefaultListPageSize = 50;
+
+        /// <summary>
+        /// resoniteVersion と appVersion を見栄え良く整形する。
+        /// 両方空なら "-"、片方欠落時はカッコで補足
+        /// </summary>
+        internal static string FormatVersion(string? resoniteVersion, string? appVersion)
+        {
+            var rv = resoniteVersion ?? "";
+            var av = appVersion ?? "";
+            if (string.IsNullOrEmpty(rv) && string.IsNullOrEmpty(av)) return "-";
+            if (string.IsNullOrEmpty(av)) return rv;
+            if (string.IsNullOrEmpty(rv)) return $"({av})";
+            return $"{rv} ({av})";
+        }
+
+        /// <summary>
+        /// ホスト表示名。Name が空なら ID の先頭 idHeadLen 文字を表示
+        /// </summary>
+        internal static string FormatHostDisplayName(HeadlessHost host, int idHeadLen = 8)
+        {
+            if (!string.IsNullOrEmpty(host.Name)) return host.Name;
+            var id = host.Id ?? "";
+            return id.Substring(0, Math.Min(idHeadLen, id.Length));
+        }
+
         internal static Button BuildSubTabButton(UIBuilder ui, string label, Action onClick)
         {
             var btn = ui.Button(label);
@@ -388,7 +424,7 @@ namespace BaruHDLIntegration.Hdl
             {
                 var slot = world.RootSlot.LocalUserSpace.AddSlot("World Orb");
                 var orb = slot.AttachComponent<WorldOrb>();
-                orb.URL = new Uri(worldUrl!);
+                orb.URL = new Uri(worldUrl);
                 orb.WorldName = worldName;
                 slot.PositionInFrontOfUser();
             });

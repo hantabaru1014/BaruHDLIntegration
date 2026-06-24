@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.UIX;
@@ -32,11 +33,12 @@ namespace BaruHDLIntegration.Hdl
                 try
                 {
                     var client = BaruHDLIntegration.GetClient();
-                    // アカウントは一括取得したいので大きめのページサイズを指定
-                    var accRes = await client.ListHeadlessAccountsAsync(new ListHeadlessAccountsRequest { Page = new PageRequest { PageIndex = 0, PageSize = 200 } });
-                    accounts = accRes.Accounts ?? new List<HeadlessAccount>();
-                    var tagRes = await client.ListHeadlessHostImageTagsAsync(new ListHeadlessHostImageTagsRequest());
-                    tags = tagRes.Tags ?? new List<ListHeadlessHostImageTagsResponse.Types.ContainerImage>();
+                    // アカウント一覧とイメージタグ一覧は独立しているので並列化
+                    var accTask = client.ListHeadlessAccountsAsync(new ListHeadlessAccountsRequest { Page = new PageRequest { PageIndex = 0, PageSize = HdlUI.FetchAllPageSize } });
+                    var tagTask = client.ListHeadlessHostImageTagsAsync(new ListHeadlessHostImageTagsRequest());
+                    await Task.WhenAll(accTask, tagTask);
+                    accounts = accTask.Result.Accounts ?? new List<HeadlessAccount>();
+                    tags = tagTask.Result.Tags ?? new List<ListHeadlessHostImageTagsResponse.Types.ContainerImage>();
                 }
                 catch (Exception ex)
                 {

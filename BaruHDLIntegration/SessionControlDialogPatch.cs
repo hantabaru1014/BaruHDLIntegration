@@ -20,7 +20,7 @@ namespace BaruHDLIntegration
         }
 
         private static Slot? _hdlContentHost;
-        private static readonly Button?[] _subTabButtons = new Button?[3];
+        private static readonly Button?[] _subTabButtons = new Button?[Enum.GetValues(typeof(SubTab)).Length];
         private static SubTab _activeSubTab = SubTab.Current;
         private static int _hdlTabValue;
 

@@ -39,7 +39,7 @@ namespace BaruHDLIntegration.Hdl
             HdlUI.BuildReadOnlyField(ui, "ID", host.Id);
             HdlUI.BuildReadOnlyField(ui, "Status", host.Status.ToString());
             HdlUI.BuildReadOnlyField(ui, "Account", $"{host.AccountName} ({host.AccountId})");
-            HdlUI.BuildReadOnlyField(ui, "Version", FormatVersion(host.ResoniteVersion, host.AppVersion));
+            HdlUI.BuildReadOnlyField(ui, "Version", HdlUI.FormatVersion(host.ResoniteVersion, host.AppVersion));
             HdlUI.BuildReadOnlyField(ui, "FPS", host.Fps.ToString("F1"));
             HdlUI.BuildReadOnlyField(ui, "Memo", string.IsNullOrEmpty(host.Memo) ? "-" : host.Memo);
 
@@ -398,16 +398,6 @@ namespace BaruHDLIntegration.Hdl
                     if (isError) HdlUI.SetStatus(statusText, msg, true);
                 });
             };
-        }
-
-        private static string FormatVersion(string resoniteVersion, string appVersion)
-        {
-            var rv = resoniteVersion ?? "";
-            var av = appVersion ?? "";
-            if (string.IsNullOrEmpty(rv) && string.IsNullOrEmpty(av)) return "-";
-            if (string.IsNullOrEmpty(av)) return rv;
-            if (string.IsNullOrEmpty(rv)) return $"({av})";
-            return $"{rv} ({av})";
         }
     }
 }

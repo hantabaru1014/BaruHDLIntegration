@@ -16,27 +16,13 @@ namespace BaruHDLIntegration.Hdl
     {
         private static readonly string[] _headers = { "Name", "Account", "Status", "Version", "FPS" };
         private static readonly float[] _weights = { 30f, 18f, 12f, 22f, 8f };
-        private const int DefaultPageSize = 50;
 
-        private static Slot? _contentRoot;
         private static int _refreshGeneration;
         private static int _pageIndex = 0;
-        private static int _pageSize = DefaultPageSize;
         private static int _totalCount = 0;
-
-        private static string FormatVersion(string resoniteVersion, string appVersion)
-        {
-            var rv = resoniteVersion ?? "";
-            var av = appVersion ?? "";
-            if (string.IsNullOrEmpty(rv) && string.IsNullOrEmpty(av)) return "-";
-            if (string.IsNullOrEmpty(av)) return rv;
-            if (string.IsNullOrEmpty(rv)) return $"({av})";
-            return $"{rv} ({av})";
-        }
 
         internal static void Build(Slot contentRoot)
         {
-            _contentRoot = contentRoot;
             var gen = ++_refreshGeneration;
 
             Slot listRoot = null!;
@@ -120,7 +106,7 @@ namespace BaruHDLIntegration.Hdl
                     var client = BaruHDLIntegration.GetClient();
                     var req = new ListHeadlessHostRequest
                     {
-                        Page = new PageRequest { PageIndex = _pageIndex, PageSize = _pageSize },
+                        Page = new PageRequest { PageIndex = _pageIndex, PageSize = HdlUI.DefaultListPageSize },
                     };
                     var res = await client.ListHeadlessHostAsync(req);
                     hosts = res.Hosts ?? new List<HeadlessHost>();
@@ -141,7 +127,6 @@ namespace BaruHDLIntegration.Hdl
                     if (pageInfo != null)
                     {
                         _pageIndex = pageInfo.PageIndex;
-                        _pageSize = pageInfo.PageSize > 0 ? pageInfo.PageSize : _pageSize;
                         _totalCount = pageInfo.TotalCount;
                     }
 
@@ -168,10 +153,10 @@ namespace BaruHDLIntegration.Hdl
                             var host = hosts[i];
                             var cells = new[]
                             {
-                                string.IsNullOrEmpty(host.Name) ? host.Id.Substring(0, Math.Min(8, host.Id.Length)) : host.Name,
+                                HdlUI.FormatHostDisplayName(host),
                                 host.AccountName,
                                 host.Status.ToString(),
-                                FormatVersion(host.ResoniteVersion, host.AppVersion),
+                                HdlUI.FormatVersion(host.ResoniteVersion, host.AppVersion),
                                 host.Fps.ToString("F1"),
                             };
                             ui.Style.MinHeight = 32f;
@@ -190,7 +175,7 @@ namespace BaruHDLIntegration.Hdl
                         footerRoot.DestroyChildren();
                         var footerUi = new UIBuilder(footerRoot);
                         RadiantUI_Constants.SetupDefaultStyle(footerUi);
-                        HdlUI.BuildPaginationFooter(footerUi, _pageIndex, _pageSize, _totalCount, newPage =>
+                        HdlUI.BuildPaginationFooter(footerUi, _pageIndex, HdlUI.DefaultListPageSize, _totalCount, newPage =>
                         {
                             _pageIndex = newPage;
                             Refresh(listRoot, footerRoot);
