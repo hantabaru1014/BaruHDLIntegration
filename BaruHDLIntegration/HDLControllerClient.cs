@@ -18,6 +18,8 @@ namespace BaruHDLIntegration
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            // proto3 JSON仕様により int64/uint64 は JSON 文字列で送られるので、文字列からの読み取りを許可する
+            NumberHandling = JsonNumberHandling.AllowReadingFromString,
             Converters =
             {
                 new JsonStringEnumConverter(),

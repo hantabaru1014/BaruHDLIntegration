@@ -32,6 +32,9 @@
     <Reference Include="Elements.Core">
       <HintPath>$(AppPath)\Elements.Core.dll</HintPath>
     </Reference>
+    <Reference Include="Elements.Assets">
+      <HintPath>$(AppPath)\Elements.Assets.dll</HintPath>
+    </Reference>
     <Reference Include="SkyFrost.Base.Models">
       <HintPath>$(AppPath)\SkyFrost.Base.Models.dll</HintPath>
     </Reference>

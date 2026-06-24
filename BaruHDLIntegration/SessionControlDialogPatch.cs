@@ -1,14 +1,10 @@
+using BaruHDLIntegration.Hdl;
 using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.UIX;
 using HarmonyLib;
-using Hdlctrl.V1;
-using ResoniteModLoader;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Reflection;
 
 namespace BaruHDLIntegration
@@ -16,7 +12,16 @@ namespace BaruHDLIntegration
     [HarmonyPatch(typeof(SessionControlDialog))]
     static class SessionControlDialogPatch
     {
-        private static Slot? _hdlContentRoot;
+        internal enum SubTab
+        {
+            Hosts = 0,
+            Sessions = 1,
+            Current = 2,
+        }
+
+        private static Slot? _hdlContentHost;
+        private static readonly Button?[] _subTabButtons = new Button?[3];
+        private static SubTab _activeSubTab = SubTab.Current;
         private static int _hdlTabValue;
 
         private static readonly FieldInfo _activeTabField = AccessTools.Field(typeof(SessionControlDialog), "ActiveTab");
@@ -32,28 +37,6 @@ namespace BaruHDLIntegration
                 .Cast<int>()
                 .Max();
             return maxValue + 1;
-        }
-
-        /// <summary>
-        /// HDLタブの共通レイアウトをセットアップする
-        /// 中央50%にコンテンツを配置し、ヘッダーテキストを追加
-        /// </summary>
-        private static UIBuilder SetupCenteredLayout(UIBuilder ui)
-        {
-            RadiantUI_Constants.SetupDefaultStyle(ui);
-
-            var columns = ui.SplitHorizontally(0.25f, 0.5f, 0.25f);
-            ui = new UIBuilder(columns[1]);
-            RadiantUI_Constants.SetupDefaultStyle(ui);
-
-            ui.VerticalLayout(4f, 0f);
-            ui.FitContent(SizeFit.Disabled, SizeFit.PreferredSize);
-            ui.Style.MinHeight = 24f;
-            ui.Style.PreferredHeight = 24f;
-
-            ui.Text("ヘッドレス操作", bestFit: true);
-
-            return ui;
         }
 
         /// <summary>
@@ -103,201 +86,71 @@ namespace BaruHDLIntegration
             var ui = slideSwap.Target.Swap(slide);
             activeTab.Value = (SessionControlDialog.Tab)_hdlTabValue;
 
-            _hdlContentRoot = ui.Root;
-
-            BuildHdlTabInitialUI(ui);
+            BuildHdlTabRoot(ui);
         }
 
         /// <summary>
-        /// HDLタブの初期UI（ローディング状態）を構築
+        /// ヘッドレスタブのルート: 左サイドバー(縦サブタブ)+右コンテンツの2カラム構成
         /// </summary>
-        private static void BuildHdlTabInitialUI(UIBuilder ui)
+        private static void BuildHdlTabRoot(UIBuilder ui)
         {
-            ui = SetupCenteredLayout(ui);
-            ui.Text("読み込み中...");
+            RadiantUI_Constants.SetupDefaultStyle(ui);
 
-            var world = ui.Root.Engine.WorldManager.FocusedWorld;
-            FetchAndBuildSessionUI(world);
+            var cols = ui.SplitHorizontally(0.18f, 0.82f);
+
+            var sideUi = new UIBuilder(cols[0]);
+            RadiantUI_Constants.SetupDefaultStyle(sideUi);
+            sideUi.VerticalLayout(4f, 4f, childAlignment: Alignment.TopCenter, forceExpandHeight: false);
+            sideUi.Style.MinHeight = 36f;
+            sideUi.Style.PreferredHeight = 36f;
+            sideUi.Style.FlexibleHeight = -1f;
+
+            _subTabButtons[(int)SubTab.Hosts] = HdlUI.BuildSubTabButton(sideUi, "ホスト", () => SwitchSubTab(SubTab.Hosts));
+            _subTabButtons[(int)SubTab.Sessions] = HdlUI.BuildSubTabButton(sideUi, "セッション", () => SwitchSubTab(SubTab.Sessions));
+            _subTabButtons[(int)SubTab.Current] = HdlUI.BuildSubTabButton(sideUi, "現在のセッション", () => SwitchSubTab(SubTab.Current));
+
+            UpdateSubTabButtonColors();
+
+            _hdlContentHost = cols[1].Slot;
+
+            RebuildActiveSubTab();
         }
 
-        /// <summary>
-        /// セッション情報を取得してUIを構築
-        /// </summary>
-        private static void FetchAndBuildSessionUI(World world)
+        private static void SwitchSubTab(SubTab tab)
         {
-            world.Coroutines.StartBackgroundTask(async () =>
-            {
-                var client = BaruHDLIntegration.GetClient();
-                ResoniteMod.Msg($"Getting session details for world: {world.Name}({world.SessionId})");
-                try
-                {
-                    var session = (await client.GetSessionDetailsAsync(new GetSessionDetailsRequest { SessionId = world.SessionId })).Session;
-                    _hdlContentRoot?.RunSynchronously(() =>
-                    {
-                        if (_hdlContentRoot != null && !_hdlContentRoot.IsDestroyed)
-                        {
-                            BuildHdlTabContent(_hdlContentRoot, session!);
-                        }
-                    });
-                }
-                catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-                {
-                    // 404の場合は自分のヘッドレスではないだけなのでエラーではない
-                    ResoniteMod.Msg($"Session not found on headless: {world.SessionId}");
-                    _hdlContentRoot?.RunSynchronously(() =>
-                    {
-                        if (_hdlContentRoot != null && !_hdlContentRoot.IsDestroyed)
-                        {
-                            BuildHdlTabNotFound(_hdlContentRoot);
-                        }
-                    });
-                }
-                catch (Exception ex)
-                {
-                    ResoniteMod.Warn($"Failed to get session details: {ex}");
-                    _hdlContentRoot?.RunSynchronously(() =>
-                    {
-                        if (_hdlContentRoot != null && !_hdlContentRoot.IsDestroyed)
-                        {
-                            BuildHdlTabError(_hdlContentRoot, ex.Message);
-                        }
-                    });
-                }
-            });
+            if (_activeSubTab == tab && _hdlContentHost != null && _hdlContentHost.ChildrenCount > 0) return;
+            _activeSubTab = tab;
+            UpdateSubTabButtonColors();
+            RebuildActiveSubTab();
         }
 
-        /// <summary>
-        /// HDLタブのコンテンツUI（セッション情報取得後）を構築
-        /// </summary>
-        private static void BuildHdlTabContent(Slot contentRoot, Hdlctrl.V1.Session session)
+        private static void RebuildActiveSubTab()
         {
-            contentRoot.DestroyChildren();
-            var ui = SetupCenteredLayout(new UIBuilder(contentRoot));
-
-            var saveButtonLabel = session.CurrentState?.CanSave == true ? "World.Actions.Save".AsLocaleKey() : "World.Actions.SaveAs".AsLocaleKey();
-            var saveButton = ui.Button(OfficialAssets.Graphics.Icons.Dash.SaveWorld, saveButtonLabel);
-            saveButton.LocalPressed += async (IButton button, ButtonEventData eventData) =>
+            if (_hdlContentHost == null || _hdlContentHost.IsDestroyed) return;
+            _hdlContentHost.DestroyChildren();
+            switch (_activeSubTab)
             {
-                var client = BaruHDLIntegration.GetClient();
-                saveButton.Slot.RunSynchronously(() =>
-                {
-                    saveButton.Enabled = false;
-                    saveButton.LabelText = "Saving...";
-                });
-                if (session.CurrentState?.CanSave == true)
-                {
-                    await client.SaveSessionWorldAsync(new SaveSessionWorldRequest { SessionId = session.Id, SaveMode = SaveSessionWorldRequest.Types.SaveMode.Overwrite });
-                }
-                else if (session.CurrentState?.CanSaveAs == true)
-                {
-                    await client.SaveSessionWorldAsync(new SaveSessionWorldRequest { SessionId = session.Id, SaveMode = SaveSessionWorldRequest.Types.SaveMode.SaveAs });
-                }
-                var updatedSession = (await client.GetSessionDetailsAsync(new GetSessionDetailsRequest { SessionId = session.Id })).Session;
-                if (updatedSession?.CurrentState?.CanSave == true)
-                {
-                    saveButton.Slot.RunSynchronously(() =>
-                    {
-                        saveButton.Enabled = true;
-                        saveButton.LabelText = "World.Actions.Save".AsLocaleKey().format;
-                    });
-                }
-                else if (updatedSession?.CurrentState?.CanSaveAs == true)
-                {
-                    saveButton.Slot.RunSynchronously(() =>
-                    {
-                        saveButton.Enabled = true;
-                        saveButton.LabelText = "World.Actions.SaveAs".AsLocaleKey().format;
-                    });
-                }
-                else
-                {
-                    saveButton.Slot.RunSynchronously(() =>
-                    {
-                        saveButton.Enabled = false;
-                        saveButton.LabelText = "World.Actions.SaveAs".AsLocaleKey().format;
-                    });
-                }
-            };
-            saveButton.Enabled = session.CurrentState?.CanSave == true || session.CurrentState?.CanSaveAs == true;
-
-            var stopButton = ui.Button(OfficialAssets.Graphics.Icons.Dash.CloseWorld, "World.Actions.Close".AsLocaleKey());
-            stopButton.LocalPressed += async (IButton button, ButtonEventData eventData) =>
-            {
-                var client = BaruHDLIntegration.GetClient();
-                stopButton.Slot.RunSynchronously(() =>
-                {
-                    stopButton.Enabled = false;
-                    stopButton.LabelText = "Stopping...";
-                });
-                await client.StopSessionAsync(new StopSessionRequest { SessionId = session.Id });
-                stopButton.Slot.RunSynchronously(() =>
-                {
-                    stopButton.Enabled = true;
-                    stopButton.LabelText = "World.Actions.Close".AsLocaleKey().format;
-                });
-            };
-
-            var adminButton = ui.Button("Adminになる");
-            adminButton.LocalPressed += async (IButton button, ButtonEventData eventData) =>
-            {
-                var client = BaruHDLIntegration.GetClient();
-                adminButton.Slot.RunSynchronously(() =>
-                {
-                    adminButton.Enabled = false;
-                    adminButton.LabelText = "リクエスト中...";
-                });
-                await client.UpdateUserRoleAsync(new UpdateUserRoleRequest { HostId = session.HostId, Parameters = new Headless.Rpc.UpdateUserRoleRequest { SessionId = session.Id, UserId = adminButton.World.LocalUser.UserID, Role = "Admin" } });
-                adminButton.Slot.RunSynchronously(() =>
-                {
-                    adminButton.Enabled = true;
-                    adminButton.LabelText = "Adminになる";
-                });
-            };
-            adminButton.Enabled = contentRoot.Engine.WorldManager.FocusedWorld.LocalUser.Role.RoleName != "Admin";
+                case SubTab.Hosts:
+                    HdlHostsPanel.Build(_hdlContentHost);
+                    break;
+                case SubTab.Sessions:
+                    HdlSessionsPanel.Build(_hdlContentHost);
+                    break;
+                case SubTab.Current:
+                    HdlCurrentSessionPanel.Build(_hdlContentHost);
+                    break;
+            }
         }
 
-        /// <summary>
-        /// HDLタブのセッション未検出UI（404の場合）
-        /// </summary>
-        private static void BuildHdlTabNotFound(Slot contentRoot)
+        private static void UpdateSubTabButtonColors()
         {
-            contentRoot.DestroyChildren();
-            var ui = SetupCenteredLayout(new UIBuilder(contentRoot));
-
-            ui.Text("このセッションは設定されたcontrollerで管理されていません");
-
-            var refreshButton = ui.Button("再取得");
-            refreshButton.LocalPressed += (IButton button, ButtonEventData eventData) =>
+            for (int i = 0; i < _subTabButtons.Length; i++)
             {
-                if (_hdlContentRoot != null && !_hdlContentRoot.IsDestroyed)
+                if (_subTabButtons[i] != null)
                 {
-                    _hdlContentRoot.DestroyChildren();
-                    var refreshUi = new UIBuilder(_hdlContentRoot);
-                    BuildHdlTabInitialUI(refreshUi);
+                    HdlUI.SetSubTabButtonActive(_subTabButtons[i]!, i == (int)_activeSubTab);
                 }
-            };
-        }
-
-        /// <summary>
-        /// HDLタブのエラーUI
-        /// </summary>
-        private static void BuildHdlTabError(Slot contentRoot, string errorMessage)
-        {
-            contentRoot.DestroyChildren();
-            var ui = SetupCenteredLayout(new UIBuilder(contentRoot));
-
-            ui.Text($"エラー: {errorMessage}");
-
-            var refreshButton = ui.Button("再取得");
-            refreshButton.LocalPressed += (IButton button, ButtonEventData eventData) =>
-            {
-                if (_hdlContentRoot != null && !_hdlContentRoot.IsDestroyed)
-                {
-                    _hdlContentRoot.DestroyChildren();
-                    var refreshUi = new UIBuilder(_hdlContentRoot);
-                    BuildHdlTabInitialUI(refreshUi);
-                }
-            };
+            }
         }
 
         /// <summary>
@@ -322,7 +175,8 @@ namespace BaruHDLIntegration
         }
 
         /// <summary>
-        /// ワールド変更時にHDLタブのUIを更新
+        /// ワールド変更時、現在のセッションタブのみリフレッシュする
+        /// (ホスト/セッションタブはワールド非依存なので維持)
         /// </summary>
         [HarmonyPatch("UpdateValueSyncs")]
         [HarmonyPostfix]
@@ -331,14 +185,16 @@ namespace BaruHDLIntegration
             var activeTab = _activeTabField.GetValue(__instance) as Sync<SessionControlDialog.Tab>;
             if (activeTab == null) return;
 
-            if ((int)activeTab.Value != _hdlTabValue || _hdlContentRoot == null) return;
+            if ((int)activeTab.Value != _hdlTabValue) return;
+            if (_activeSubTab != SubTab.Current) return;
+            if (_hdlContentHost == null || _hdlContentHost.IsDestroyed) return;
 
-            _hdlContentRoot.RunSynchronously(() =>
+            _hdlContentHost.RunSynchronously(() =>
             {
-                _hdlContentRoot.DestroyChildren();
+                if (_hdlContentHost == null || _hdlContentHost.IsDestroyed) return;
+                _hdlContentHost.DestroyChildren();
+                HdlCurrentSessionPanel.Build(_hdlContentHost);
             });
-
-            FetchAndBuildSessionUI(world);
         }
     }
 }
