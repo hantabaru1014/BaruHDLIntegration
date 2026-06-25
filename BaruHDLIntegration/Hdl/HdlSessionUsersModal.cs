@@ -69,14 +69,21 @@ namespace BaruHDLIntegration.Hdl
 
             var refreshBtn = ui.Button("更新");
 
-            // ユーザー一覧コンテナ
-            var listContainer = rootSlot.AddSlot("UserList");
-            var rt = listContainer.AttachComponent<RectTransform>();
-            var le = listContainer.AttachComponent<LayoutElement>();
-            le.MinHeight.Value = 360f;
-            le.FlexibleHeight.Value = 1f;
-            listContainer.AttachComponent<VerticalLayout>();
-            listContainer.AttachComponent<ContentSizeFitter>().VerticalFit.Value = SizeFit.PreferredSize;
+            // ユーザー一覧コンテナ (内側 ScrollArea + ui.Root パターン)
+            // 外側 VerticalLayout (forceExpandHeight=false) に正しく取られるよう MinHeight を明示する
+            ui.Style.MinHeight = 320f;
+            ui.Style.PreferredHeight = 320f;
+            ui.Style.FlexibleHeight = 1f;
+            ui.ScrollArea();
+            ui.VerticalLayout(2f, 0f);
+            ui.FitContent(SizeFit.Disabled, SizeFit.PreferredSize);
+            var listContainer = ui.Root;
+            ui.NestOut();
+
+            // 後続のボタン用にスタイルをリセット (Style はネスト跨ぎでも持続するため)
+            ui.Style.MinHeight = 32f;
+            ui.Style.PreferredHeight = 32f;
+            ui.Style.FlexibleHeight = -1f;
 
             void Refresh()
             {
