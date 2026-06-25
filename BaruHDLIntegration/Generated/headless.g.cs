@@ -11,6 +11,23 @@ using System.Text.Json.Serialization;
 namespace Headless.Rpc;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
+public enum WorldBinaryFormat
+{
+    [JsonStringEnumMemberName("WORLD_BINARY_FORMAT_UNSPECIFIED")]
+    Unspecified = 0,
+
+    [JsonStringEnumMemberName("WORLD_BINARY_FORMAT_7ZBSON")]
+    _7zbson = 1,
+
+    [JsonStringEnumMemberName("WORLD_BINARY_FORMAT_BRSON")]
+    Brson = 2,
+
+    [JsonStringEnumMemberName("WORLD_BINARY_FORMAT_RESONITEPACKAGE")]
+    Resonitepackage = 3,
+
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum AccessLevel
 {
     [JsonStringEnumMemberName("ACCESS_LEVEL_UNSPECIFIED")]
@@ -514,6 +531,31 @@ public class SaveAsSessionWorldResponse
 {
     [JsonPropertyName("savedRecordUrl")]
     public string SavedRecordUrl { get; set; } = "";
+
+}
+
+public class DownloadSessionWorldRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("format")]
+    public WorldBinaryFormat Format { get; set; }
+
+    [JsonPropertyName("includeVariants")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? IncludeVariants { get; set; }
+
+    [JsonPropertyName("brotliQuality")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? BrotliQuality { get; set; }
+
+}
+
+public class DownloadSessionWorldResponse
+{
+    [JsonPropertyName("chunk")]
+    public byte[] Chunk { get; set; } = Array.Empty<byte>();
 
 }
 

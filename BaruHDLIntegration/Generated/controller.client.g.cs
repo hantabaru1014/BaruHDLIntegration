@@ -277,6 +277,14 @@ public class ControllerServiceClient
             "SearchWorlds", request, cancellationToken);
     }
 
+    public virtual Task<GetOwnWorldsResponse> GetOwnWorldsAsync(
+        GetOwnWorldsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<GetOwnWorldsRequest, GetOwnWorldsResponse>(
+            "GetOwnWorlds", request, cancellationToken);
+    }
+
     public virtual Task<GetResoniteUserResponse> GetResoniteUserAsync(
         GetResoniteUserRequest request,
         CancellationToken cancellationToken = default)
@@ -371,6 +379,14 @@ public class ControllerServiceClient
     {
         return RequestAsync<SaveSessionWorldRequest, SaveSessionWorldResponse>(
             "SaveSessionWorld", request, cancellationToken);
+    }
+
+    public virtual Task<PrepareSessionWorldDownloadResponse> PrepareSessionWorldDownloadAsync(
+        PrepareSessionWorldDownloadRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<PrepareSessionWorldDownloadRequest, PrepareSessionWorldDownloadResponse>(
+            "PrepareSessionWorldDownload", request, cancellationToken);
     }
 
     public virtual Task<InviteUserResponse> InviteUserAsync(
