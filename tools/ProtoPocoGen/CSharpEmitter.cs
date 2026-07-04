@@ -515,7 +515,11 @@ public class CSharpEmitter
         sb.AppendLine("#nullable enable");
         sb.AppendLine();
         sb.AppendLine("using System;");
+        sb.AppendLine("using System.Buffers.Binary;");
+        sb.AppendLine("using System.Collections.Generic;");
+        sb.AppendLine("using System.IO;");
         sb.AppendLine("using System.Net.Http;");
+        sb.AppendLine("using System.Runtime.CompilerServices;");
         sb.AppendLine("using System.Text;");
         sb.AppendLine("using System.Text.Json;");
         sb.AppendLine("using System.Text.Json.Serialization;");
@@ -577,14 +581,24 @@ public class CSharpEmitter
         sb.AppendLine("    protected readonly HttpClient _httpClient;");
         sb.AppendLine("    protected readonly string _baseAddress;");
         sb.AppendLine("    protected readonly JsonSerializerOptions _jsonOptions;");
+        sb.AppendLine("    private readonly Action<HttpRequestMessage>? _configureRequest;");
+        sb.AppendLine("    private readonly Func<HttpResponseMessage, int, CancellationToken, Task<bool>>? _onRequestFailed;");
         sb.AppendLine();
 
-        // Constructor
-        sb.AppendLine($"    public {clientName}(HttpClient httpClient, string baseAddress, JsonSerializerOptions? jsonOptions = null)");
+        // Constructor — configureRequest / onRequestFailed で auth 等の共通ロジックを注入できる。
+        // subclass override も引き続き利用可能 (delegate 未指定時は override が生きる)。
+        sb.AppendLine($"    public {clientName}(");
+        sb.AppendLine("        HttpClient httpClient,");
+        sb.AppendLine("        string baseAddress,");
+        sb.AppendLine("        JsonSerializerOptions? jsonOptions = null,");
+        sb.AppendLine("        Action<HttpRequestMessage>? configureRequest = null,");
+        sb.AppendLine("        Func<HttpResponseMessage, int, CancellationToken, Task<bool>>? onRequestFailed = null)");
         sb.AppendLine("    {");
         sb.AppendLine("        _httpClient = httpClient;");
         sb.AppendLine("        _baseAddress = baseAddress.TrimEnd('/');");
         sb.AppendLine("        _jsonOptions = jsonOptions ?? CreateDefaultJsonOptions();");
+        sb.AppendLine("        _configureRequest = configureRequest;");
+        sb.AppendLine("        _onRequestFailed = onRequestFailed;");
         sb.AppendLine("    }");
         sb.AppendLine();
 
@@ -596,26 +610,25 @@ public class CSharpEmitter
         sb.AppendLine("    };");
         sb.AppendLine();
 
-        // Customization hooks
+        // Customization hooks: override or ctor-injected delegate. どちらも空なら no-op.
         sb.AppendLine("    /// <summary>");
-        sb.AppendLine("    /// Called before sending a request. Override to add authentication headers, etc.");
+        sb.AppendLine("    /// Called before sending a request. Override or inject a delegate via ctor to add auth headers, etc.");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    protected virtual void ConfigureRequest(HttpRequestMessage request) { }");
+        sb.AppendLine("    protected virtual void ConfigureRequest(HttpRequestMessage request)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        _configureRequest?.Invoke(request);");
+        sb.AppendLine("    }");
         sb.AppendLine();
 
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Called when a request fails. Return true to retry the request.");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    /// <param name=\"response\">The failed response</param>");
-        sb.AppendLine("    /// <param name=\"retryCount\">Current retry count (starts at 0)</param>");
-        sb.AppendLine("    /// <param name=\"cancellationToken\">Cancellation token</param>");
-        sb.AppendLine("    /// <returns>True to retry, false to throw</returns>");
         sb.AppendLine("    protected virtual Task<bool> OnRequestFailedAsync(");
         sb.AppendLine("        HttpResponseMessage response,");
         sb.AppendLine("        int retryCount,");
         sb.AppendLine("        CancellationToken cancellationToken)");
         sb.AppendLine("    {");
-        sb.AppendLine("        return Task.FromResult(false);");
+        sb.AppendLine("        return _onRequestFailed?.Invoke(response, retryCount, cancellationToken) ?? Task.FromResult(false);");
         sb.AppendLine("    }");
         sb.AppendLine();
 
@@ -654,6 +667,13 @@ public class CSharpEmitter
         sb.AppendLine("    }");
         sb.AppendLine();
 
+        // StreamAsync helper (only emit if any server-streaming RPC exists in this service)
+        var hasServerStream = service.Rpcs.Any(r => !r.RequestStream && r.ResponseStream);
+        if (hasServerStream)
+        {
+            EmitStreamHelper(sb);
+        }
+
         // RPC methods
         foreach (var rpc in service.Rpcs)
         {
@@ -663,11 +683,133 @@ public class CSharpEmitter
         sb.AppendLine("}");
     }
 
+    private static void EmitStreamHelper(StringBuilder sb)
+    {
+        // Connect protocol server-streaming envelope reader.
+        // Frame format: [1 byte flags][4 bytes big-endian length][payload].
+        // flags bit 0x02 => end-of-stream trailer (payload is JSON with optional error/metadata).
+        sb.AppendLine("    protected virtual async IAsyncEnumerable<TResponse> StreamAsync<TRequest, TResponse>(");
+        sb.AppendLine("        string rpcName,");
+        sb.AppendLine("        TRequest request,");
+        sb.AppendLine("        [EnumeratorCancellation] CancellationToken cancellationToken = default)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        var retryCount = 0;");
+        sb.AppendLine("        while (true)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            var payloadJson = JsonSerializer.Serialize(request, _jsonOptions);");
+        sb.AppendLine("            var payloadBytes = Encoding.UTF8.GetBytes(payloadJson);");
+        sb.AppendLine("            var envelope = new byte[5 + payloadBytes.Length];");
+        sb.AppendLine("            envelope[0] = 0; // flags");
+        sb.AppendLine("            BinaryPrimitives.WriteUInt32BigEndian(envelope.AsSpan(1, 4), (uint)payloadBytes.Length);");
+        sb.AppendLine("            Buffer.BlockCopy(payloadBytes, 0, envelope, 5, payloadBytes.Length);");
+        sb.AppendLine();
+        sb.AppendLine("            var httpRequest = new HttpRequestMessage(HttpMethod.Post,");
+        sb.AppendLine("                $\"{_baseAddress}/{ServiceName}/{rpcName}\");");
+        sb.AppendLine("            httpRequest.Content = new ByteArrayContent(envelope);");
+        sb.AppendLine("            httpRequest.Content.Headers.ContentType =");
+        sb.AppendLine("                new System.Net.Http.Headers.MediaTypeHeaderValue(\"application/connect+json\");");
+        sb.AppendLine("            httpRequest.Headers.TryAddWithoutValidation(\"Connect-Protocol-Version\", \"1\");");
+        sb.AppendLine();
+        sb.AppendLine("            ConfigureRequest(httpRequest);");
+        sb.AppendLine();
+        sb.AppendLine("            var response = await _httpClient.SendAsync(");
+        sb.AppendLine("                httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);");
+        sb.AppendLine();
+        sb.AppendLine("            if (!response.IsSuccessStatusCode)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                if (await OnRequestFailedAsync(response, retryCount, cancellationToken))");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    retryCount++;");
+        sb.AppendLine("                    response.Dispose();");
+        sb.AppendLine("                    continue;");
+        sb.AppendLine("                }");
+        sb.AppendLine("                response.EnsureSuccessStatusCode();");
+        sb.AppendLine("            }");
+        sb.AppendLine();
+        sb.AppendLine("            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);");
+        sb.AppendLine("            var header = new byte[5];");
+        sb.AppendLine("            while (true)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                if (!await ReadExactAsync(stream, header, 5, cancellationToken))");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    yield break;");
+        sb.AppendLine("                }");
+        sb.AppendLine("                var flags = header[0];");
+        sb.AppendLine("                var length = BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(1, 4));");
+        sb.AppendLine("                var body = length == 0 ? Array.Empty<byte>() : new byte[length];");
+        sb.AppendLine("                if (length > 0 && !await ReadExactAsync(stream, body, (int)length, cancellationToken))");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    yield break;");
+        sb.AppendLine("                }");
+        sb.AppendLine();
+        sb.AppendLine("                if ((flags & 0x02) != 0)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    // Trailer frame: check for error payload.");
+        sb.AppendLine("                    if (length > 0)");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        var trailerJson = Encoding.UTF8.GetString(body);");
+        sb.AppendLine("                        using var doc = JsonDocument.Parse(trailerJson);");
+        sb.AppendLine("                        if (doc.RootElement.TryGetProperty(\"error\", out var errorEl))");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            var code = errorEl.TryGetProperty(\"code\", out var c) ? c.GetString() : \"unknown\";");
+        sb.AppendLine("                            var msg = errorEl.TryGetProperty(\"message\", out var m) ? m.GetString() : \"\";");
+        sb.AppendLine("                            throw new HttpRequestException($\"connect stream error: {code}: {msg}\");");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                    yield break;");
+        sb.AppendLine("                }");
+        sb.AppendLine();
+        sb.AppendLine("                if (length == 0) continue;");
+        sb.AppendLine("                // ReadOnlySpan で直接デシリアライズし、中間 string 生成を回避");
+        sb.AppendLine("                var message = JsonSerializer.Deserialize<TResponse>(new ReadOnlySpan<byte>(body, 0, (int)length), _jsonOptions);");
+        sb.AppendLine("                if (message != null)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    yield return message;");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    private static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, int count, CancellationToken cancellationToken)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        var offset = 0;");
+        sb.AppendLine("        while (offset < count)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            var read = await stream.ReadAsync(buffer.AsMemory(offset, count - offset), cancellationToken);");
+        sb.AppendLine("            if (read == 0) return offset > 0 ? throw new EndOfStreamException(\"unexpected EOF\") : false;");
+        sb.AppendLine("            offset += read;");
+        sb.AppendLine("        }");
+        sb.AppendLine("        return true;");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+    }
+
     private void EmitRpcMethod(StringBuilder sb, ProtoRpc rpc, string currentNs)
     {
         var requestType = ResolveServiceTypeName(rpc.RequestType, currentNs);
         var responseType = ResolveServiceTypeName(rpc.ResponseType, currentNs);
         var methodName = $"{rpc.Name}Async";
+
+        if (rpc.RequestStream)
+        {
+            // Client-streaming / bidi は現在利用しないので emit をスキップ
+            sb.AppendLine($"    // NOTE: client-streaming RPC {rpc.Name} is not supported by this generator.");
+            sb.AppendLine();
+            return;
+        }
+
+        if (rpc.ResponseStream)
+        {
+            sb.AppendLine($"    public virtual IAsyncEnumerable<{responseType}> {methodName}(");
+            sb.AppendLine($"        {requestType} request,");
+            sb.AppendLine($"        CancellationToken cancellationToken = default)");
+            sb.AppendLine("    {");
+            sb.AppendLine($"        return StreamAsync<{requestType}, {responseType}>(");
+            sb.AppendLine($"            \"{rpc.Name}\", request, cancellationToken);");
+            sb.AppendLine("    }");
+            sb.AppendLine();
+            return;
+        }
 
         sb.AppendLine($"    public virtual Task<{responseType}> {methodName}(");
         sb.AppendLine($"        {requestType} request,");

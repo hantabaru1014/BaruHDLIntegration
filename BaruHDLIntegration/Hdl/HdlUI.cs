@@ -27,6 +27,19 @@ namespace BaruHDLIntegration.Hdl
         internal const int DefaultListPageSize = 50;
 
         /// <summary>
+        /// UI で選択可能な HeadlessHostAutoUpdatePolicy の順序付きリスト。
+        /// AutoUpdatePolicyLabels と index が対応する。
+        /// </summary>
+        internal static readonly HeadlessHostAutoUpdatePolicy[] AutoUpdatePolicies = new[]
+        {
+            HeadlessHostAutoUpdatePolicy.Never,
+            HeadlessHostAutoUpdatePolicy.UsersEmpty,
+        };
+
+        internal static readonly List<string> AutoUpdatePolicyLabels =
+            AutoUpdatePolicies.Select(p => p.ToString()).ToList();
+
+        /// <summary>
         /// resoniteVersion と appVersion を見栄え良く整形する。
         /// 両方空なら "-"、片方欠落時はカッコで補足
         /// </summary>
@@ -200,10 +213,13 @@ namespace BaruHDLIntegration.Hdl
         /// <summary>
         /// モーダルを開くべき world を決定する。
         /// ダッシュボードモード時は SessionControlDialog のある userspace world、
-        /// それ以外は invoker の focused world (= ユーザの居るワールド)
+        /// それ以外は invoker の focused world (= ユーザの居るワールド)。
+        /// forceWorldFloating=true の場合はダッシュボード設定を無視して invokerWorld をそのまま返す
+        /// (WorldOrb からの呼び出し等、必ずオーブと同じワールドに出したいケース)。
         /// </summary>
-        internal static World ResolveModalWorld(World invokerWorld)
+        internal static World ResolveModalWorld(World invokerWorld, bool forceWorldFloating = false)
         {
+            if (forceWorldFloating) return invokerWorld;
             if (OpenModalsInDashboard())
             {
                 var overlayParent = SessionControlDialogPatch.GetDashboardOverlayParent();
@@ -214,10 +230,15 @@ namespace BaruHDLIntegration.Hdl
 
         /// <summary>
         /// モーダル(タイトル+スクロール可能なコンテンツ)を構築する。閉じる際は rootSlot.Destroy() を呼ぶ。
-        /// ダッシュボードトグル ON 時はダッシュボード内オーバーレイ、それ以外はワールド配置のフローティング
+        /// ダッシュボードトグル ON 時はダッシュボード内オーバーレイ、それ以外はワールド配置のフローティング。
+        /// forceWorldFloating=true でトグル状態にかかわらず必ずワールドフローティングにする。
         /// </summary>
-        internal static (Slot rootSlot, UIBuilder ui) BuildModalPanel(World world, string title, float2 size)
+        internal static (Slot rootSlot, UIBuilder ui) BuildModalPanel(World world, string title, float2 size, bool forceWorldFloating = false)
         {
+            if (forceWorldFloating)
+            {
+                return BuildWorldFloatingPanel(world, title, size);
+            }
             var overlayParent = SessionControlDialogPatch.GetDashboardOverlayParent();
             if (OpenModalsInDashboard() && overlayParent != null && overlayParent.World == world)
             {

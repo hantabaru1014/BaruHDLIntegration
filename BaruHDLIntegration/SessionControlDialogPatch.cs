@@ -3,7 +3,10 @@ using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.UIX;
 using HarmonyLib;
+using Hdlctrl.V1;
+using ResoniteModLoader;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
@@ -25,6 +28,9 @@ namespace BaruHDLIntegration
         private static readonly Button?[] _subTabButtons = new Button?[Enum.GetValues(typeof(SubTab)).Length];
         private static SubTab _activeSubTab = SubTab.Current;
         private static int _hdlTabValue;
+
+        // グループセレクタ (BuildGroupSelector で BuildArrowSelector を包む)
+        private static Slot? _groupSelectorSlot;
 
         /// <summary>
         /// モーダルをダッシュボード内オーバーレイで開く時の親スロット。
@@ -120,11 +126,21 @@ namespace BaruHDLIntegration
             _subTabButtons[(int)SubTab.Sessions] = HdlUI.BuildSubTabButton(sideUi, "セッション", () => SwitchSubTab(SubTab.Sessions));
             _subTabButtons[(int)SubTab.Current] = HdlUI.BuildSubTabButton(sideUi, "現在のセッション", () => SwitchSubTab(SubTab.Current));
 
-            // 残り高さを占有するスペーサでトグルを最下部に押し下げる
+            // 残り高さを占有するスペーサでグループ選択/トグルを最下部に押し下げる
             sideUi.Style.MinHeight = -1f;
             sideUi.Style.PreferredHeight = -1f;
             sideUi.Style.FlexibleHeight = 1f;
             sideUi.Empty("Spacer");
+
+            // グループセレクタ (ラベル + セレクタ + 再取得)
+            sideUi.Style.MinHeight = 24f;
+            sideUi.Style.PreferredHeight = 24f;
+            sideUi.Style.FlexibleHeight = -1f;
+            sideUi.Text("グループ:", bestFit: true, Alignment.MiddleLeft);
+
+            sideUi.Style.MinHeight = 32f;
+            sideUi.Style.PreferredHeight = 32f;
+            BuildGroupSelector(sideUi);
 
             // 最下部のトグル: ON でダッシュボード内モーダル、OFF でワールド配置モーダル
             sideUi.Style.MinHeight = 36f;
@@ -182,6 +198,104 @@ namespace BaruHDLIntegration
                     HdlUI.SetSubTabButtonActive(_subTabButtons[i]!, i == (int)_activeSubTab);
                 }
             }
+        }
+
+        /// <summary>
+        /// グループセレクタ。arrow selector (「全て」+ 各グループ) と「↻」再取得ボタンを並べる。
+        /// 初期構築時はサイドバー側で親 slot を用意した状態から呼ばれる。
+        /// </summary>
+        private static void BuildGroupSelector(UIBuilder ui)
+        {
+            // 初期選択を config から復元 (初回構築時のみ)
+            var savedGroupId = BaruHDLIntegration._config?.GetValue(BaruHDLIntegration.LastSelectedGroupIdKey);
+            HdlSelectedGroup.SetSelectedGroupId(string.IsNullOrEmpty(savedGroupId) ? null : savedGroupId);
+
+            _groupSelectorSlot = ui.Empty("GroupSelector");
+            PopulateGroupSelectorContents();
+
+            // 初回のみ ListGroups を叩く。以降はキャッシュを再利用し、再取得は ↻ ボタンで明示的に。
+            if (HdlSelectedGroup.Groups.Count == 0) LoadGroupsAsync(force: false);
+        }
+
+        /// <summary>
+        /// _groupSelectorSlot に arrow selector + reload ボタンを構築する。
+        /// グループ一覧が更新された時は DestroyChildren してからこれを呼び直す。
+        /// </summary>
+        private static void PopulateGroupSelectorContents()
+        {
+            if (_groupSelectorSlot == null || _groupSelectorSlot.IsDestroyed) return;
+            var rowUi = new UIBuilder(_groupSelectorSlot);
+            RadiantUI_Constants.SetupDefaultStyle(rowUi);
+            rowUi.HorizontalLayout(4f);
+
+            // ラベル: index 0 = "全て" (null), 以降 HdlSelectedGroup.Groups と対応
+            var groups = HdlSelectedGroup.Groups;
+            var labels = new List<string>(groups.Count + 1) { "全て" };
+            for (int i = 0; i < groups.Count; i++) labels.Add(HdlSelectedGroup.FormatGroupLabel(groups[i].Id));
+
+            int defaultIndex = 0;
+            var selectedId = HdlSelectedGroup.SelectedGroupId;
+            if (selectedId != null)
+            {
+                for (int i = 0; i < groups.Count; i++)
+                {
+                    if (groups[i].Id == selectedId) { defaultIndex = i + 1; break; }
+                }
+            }
+
+            rowUi.Style.FlexibleWidth = 1f;
+            rowUi.Style.MinWidth = -1f;
+            HdlUI.BuildArrowSelector(_groupSelectorSlot, rowUi, labels, defaultIndex, onChange: newIndex =>
+            {
+                var selected = newIndex == 0 ? null : HdlSelectedGroup.Groups[newIndex - 1].Id;
+                HdlSelectedGroup.SetSelectedGroupId(selected);
+                BaruHDLIntegration._config?.Set(BaruHDLIntegration.LastSelectedGroupIdKey, selected ?? string.Empty);
+                RebuildActiveSubTab();
+            });
+
+            rowUi.Style.FlexibleWidth = -1f;
+            rowUi.Style.MinWidth = 40f;
+            var reloadBtn = rowUi.Button("↻");
+            reloadBtn.LocalPressed += (b, e) => LoadGroupsAsync(force: true);
+
+            rowUi.NestOut();
+        }
+
+        private static void LoadGroupsAsync(bool force)
+        {
+            if (_hdlTabRoot == null || _hdlTabRoot.IsDestroyed) return;
+            if (!force && HdlSelectedGroup.Groups.Count > 0) return;
+            _hdlTabRoot.World.Coroutines.StartBackgroundTask(async () =>
+            {
+                List<Group>? groups = null;
+                try
+                {
+                    var client = BaruHDLIntegration.GetClient();
+                    var res = await client.GroupService.ListGroupsAsync(new ListGroupsRequest());
+                    groups = res.Groups ?? new List<Group>();
+                }
+                catch (Exception ex)
+                {
+                    ResoniteMod.Warn($"Failed to list groups: {ex.Message}");
+                }
+                if (groups == null) return;
+
+                _hdlTabRoot?.RunSynchronously(() =>
+                {
+                    HdlSelectedGroup.SetGroups(groups);
+                    // 選択中 group_id が取得結果に無ければ「全て」に戻す
+                    if (HdlSelectedGroup.SelectedGroupId != null && HdlSelectedGroup.FindGroup(HdlSelectedGroup.SelectedGroupId) == null)
+                    {
+                        HdlSelectedGroup.SetSelectedGroupId(null);
+                    }
+                    // ラベル反映のため selector を再構築
+                    if (_groupSelectorSlot != null && !_groupSelectorSlot.IsDestroyed)
+                    {
+                        _groupSelectorSlot.DestroyChildren();
+                        PopulateGroupSelectorContents();
+                    }
+                });
+            });
         }
 
         /// <summary>

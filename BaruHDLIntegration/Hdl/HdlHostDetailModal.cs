@@ -39,6 +39,7 @@ namespace BaruHDLIntegration.Hdl
             HdlUI.BuildReadOnlyField(ui, "ID", host.Id);
             HdlUI.BuildReadOnlyField(ui, "Status", host.Status.ToString());
             HdlUI.BuildReadOnlyField(ui, "Account", $"{host.AccountName} ({host.AccountId})");
+            HdlUI.BuildReadOnlyField(ui, "Group", HdlSelectedGroup.FormatGroupLabel(host.GroupId));
             HdlUI.BuildReadOnlyField(ui, "Version", HdlUI.FormatVersion(host.ResoniteVersion, host.AppVersion));
             HdlUI.BuildReadOnlyField(ui, "FPS", host.Fps.ToString("F1"));
             HdlUI.BuildReadOnlyField(ui, "Memo", string.IsNullOrEmpty(host.Memo) ? "-" : host.Memo);
@@ -64,6 +65,12 @@ namespace BaruHDLIntegration.Hdl
             var maxTransfersField = ui.HorizontalElementWithLabel("Max Concurrent Asset Transfers", 0.4f, () => ui.TextField());
             maxTransfersField.TargetString = settings.MaxConcurrentAssetTransfers.ToString();
 
+            // AutoUpdatePolicy はホスト側のプロパティ (settings 配下ではない)
+            var currentPolicyIndex = Array.IndexOf(HdlUI.AutoUpdatePolicies, host.AutoUpdatePolicy);
+            if (currentPolicyIndex < 0) currentPolicyIndex = 0;
+            var autoUpdatePolicySelector = ui.HorizontalElementWithLabel("Auto Update Policy", 0.4f, () =>
+                HdlUI.BuildArrowSelector(rootSlot, ui, HdlUI.AutoUpdatePolicyLabels, currentPolicyIndex));
+
             var statusText = HdlUI.BuildStatusText(ui);
 
             var saveSettingsBtn = ui.Button("設定を保存");
@@ -80,6 +87,7 @@ namespace BaruHDLIntegration.Hdl
                         UsernameOverride = string.IsNullOrEmpty(usernameField.TargetString) ? null : usernameField.TargetString,
                         TickRate = float.TryParse(tickRateField.TargetString, out var tr) ? tr : (float?)null,
                         MaxConcurrentAssetTransfers = int.TryParse(maxTransfersField.TargetString, out var mt) ? mt : (int?)null,
+                        AutoUpdatePolicy = HdlUI.AutoUpdatePolicies[autoUpdatePolicySelector.Value.Value],
                     };
                     await client.UpdateHeadlessHostSettingsAsync(req);
                     onChanged?.Invoke();

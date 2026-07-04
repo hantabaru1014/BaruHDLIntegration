@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.UIX;
@@ -28,7 +29,15 @@ namespace BaruHDLIntegration.Hdl
         public List<string>? AvailableUserIds { get; set; }
         public List<Headless.Rpc.DefaultUserRole>? AvailableUserRoles { get; set; }
         public string Memo { get; set; } = "Started by BaruHDLIntegration";
-        public Action<Hdlctrl.V1.StartWorldResponse>? OnStarted { get; set; }
+        /// <summary>StartWorld RPC が受理された直後に呼ばれる。job_id を受け取る。UI 一覧の即時 refresh 等に使う。</summary>
+        public Action<string /*jobId*/>? OnStarted { get; set; }
+        /// <summary>非同期 job が SUCCESS で完了し、作成された session の詳細取得に成功した時に呼ばれる。</summary>
+        public Action<Hdlctrl.V1.Session>? OnSessionCreated { get; set; }
+        /// <summary>
+        /// true でダッシュボード内モーダル設定を無視し、必ず invokerWorld のワールドフローティングとして開く。
+        /// WorldOrb 経由の呼び出しでオーブと同じワールドに出したい場合に true にする。
+        /// </summary>
+        public bool ForceWorldFloating { get; set; } = false;
     }
 
     /// <summary>
@@ -45,7 +54,7 @@ namespace BaruHDLIntegration.Hdl
 
         internal static void Open(World invokerWorld, StartWorldFormContext ctx)
         {
-            var world = HdlUI.ResolveModalWorld(invokerWorld);
+            var world = HdlUI.ResolveModalWorld(invokerWorld, ctx.ForceWorldFloating);
             invokerWorld.Coroutines.StartBackgroundTask(async () =>
             {
                 List<HeadlessHost>? hosts = null;
@@ -54,7 +63,12 @@ namespace BaruHDLIntegration.Hdl
                 {
                     var client = BaruHDLIntegration.GetClient();
                     // ホスト一覧は全件取得して稼働中のみ抽出するため大きめのページサイズ
-                    var res = await client.ListHeadlessHostAsync(new ListHeadlessHostRequest { Page = new PageRequest { PageIndex = 0, PageSize = HdlUI.FetchAllPageSize } });
+                    // 選択中グループがあればそれに絞る (session.group_id とも一致させるため)
+                    var res = await client.ListHeadlessHostAsync(new ListHeadlessHostRequest
+                    {
+                        Page = new PageRequest { PageIndex = 0, PageSize = HdlUI.FetchAllPageSize },
+                        GroupId = HdlSelectedGroup.SelectedGroupId,
+                    });
                     hosts = (res.Hosts ?? new List<HeadlessHost>())
                         .Where(h => h.Status == HeadlessHostStatus.Running)
                         .ToList();
@@ -70,7 +84,7 @@ namespace BaruHDLIntegration.Hdl
 
         private static void BuildModal(World world, StartWorldFormContext ctx, List<HeadlessHost>? hosts, string? error)
         {
-            var (rootSlot, ui) = HdlUI.BuildModalPanel(world, ctx.Title, new float2(900f, 760f));
+            var (rootSlot, ui) = HdlUI.BuildModalPanel(world, ctx.Title, new float2(900f, 760f), ctx.ForceWorldFloating);
             if (error != null)
             {
                 ui.Text($"エラー: {error}");
@@ -96,7 +110,13 @@ namespace BaruHDLIntegration.Hdl
 
             var selectedHostIndexField = ui.HorizontalElementWithLabel("ホスト", 0.4f, () =>
             {
-                var hostLabels = hosts.Select(h => $"{h.Name}({(h.Id ?? "").Substring(0, Math.Min(6, (h.Id ?? "").Length))})").ToList();
+                // ラベルに group 名を含めることでどのグループのホストか一目で分かるようにする
+                var hostLabels = hosts.Select(h =>
+                {
+                    var idShort = (h.Id ?? "").Substring(0, Math.Min(6, (h.Id ?? "").Length));
+                    var groupLabel = HdlSelectedGroup.FormatGroupLabel(h.GroupId);
+                    return $"{h.Name}({idShort}) - {groupLabel}";
+                }).ToList();
                 return HdlUI.BuildArrowSelector(rootSlot, ui, hostLabels, defaultHostIndex);
             });
 
@@ -189,10 +209,55 @@ namespace BaruHDLIntegration.Hdl
                         HostId = host.Id,
                         Parameters = parameters,
                         Memo = ctx.Memo,
+                        // session.group_id は host.group_id と必ず一致する必要があるので host のものを継承。
+                        // sidebar「全て」時に SelectedGroupId=null を渡すと controller 側では personal group 扱いになり、
+                        // host.group_id が normal だとミスマッチ拒否される
+                        GroupId = string.IsNullOrEmpty(host.GroupId) ? null : host.GroupId,
                     };
                     var response = await client.StartWorldAsync(req);
-                    ctx.OnStarted?.Invoke(response);
+                    ctx.OnStarted?.Invoke(response.JobId);
                     rootSlot.RunSynchronously(() => rootSlot.Destroy());
+
+                    // OnSessionCreated が指定されていれば、job 完了通知を待って session を解決してから呼び出す
+                    if (ctx.OnSessionCreated != null)
+                    {
+                        var jobId = response.JobId;
+                        var hostId = host.Id;
+                        var onSessionCreated = ctx.OnSessionCreated;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var completion = await client.Notifications.WaitForJobAsync(
+                                    jobId, hostId, TimeSpan.FromSeconds(90));
+                                if (completion == null)
+                                {
+                                    ResoniteMod.Warn($"StartWorld job {jobId} did not complete within timeout");
+                                    return;
+                                }
+                                if (!completion.IsSuccess)
+                                {
+                                    ResoniteMod.Warn($"StartWorld job {jobId} failed: {completion.Message}");
+                                    return;
+                                }
+                                if (string.IsNullOrEmpty(completion.SessionId))
+                                {
+                                    ResoniteMod.Warn($"StartWorld job {jobId} succeeded but session_id could not be resolved");
+                                    return;
+                                }
+                                var detail = await client.GetSessionDetailsAsync(
+                                    new Hdlctrl.V1.GetSessionDetailsRequest { SessionId = completion.SessionId! });
+                                if (detail.Session != null)
+                                {
+                                    onSessionCreated(detail.Session);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                ResoniteMod.Warn($"Failed to resolve session after StartWorld job {jobId}: {ex}");
+                            }
+                        });
+                    }
                 }, (msg, isError) =>
                 {
                     if (isError) HdlUI.SetStatus(statusText, msg, true);

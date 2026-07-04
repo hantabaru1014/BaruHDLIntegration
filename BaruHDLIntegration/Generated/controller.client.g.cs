@@ -5,7 +5,11 @@
 #nullable enable
 
 using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -26,12 +30,21 @@ public class ControllerServiceClient
     protected readonly HttpClient _httpClient;
     protected readonly string _baseAddress;
     protected readonly JsonSerializerOptions _jsonOptions;
+    private readonly Action<HttpRequestMessage>? _configureRequest;
+    private readonly Func<HttpResponseMessage, int, CancellationToken, Task<bool>>? _onRequestFailed;
 
-    public ControllerServiceClient(HttpClient httpClient, string baseAddress, JsonSerializerOptions? jsonOptions = null)
+    public ControllerServiceClient(
+        HttpClient httpClient,
+        string baseAddress,
+        JsonSerializerOptions? jsonOptions = null,
+        Action<HttpRequestMessage>? configureRequest = null,
+        Func<HttpResponseMessage, int, CancellationToken, Task<bool>>? onRequestFailed = null)
     {
         _httpClient = httpClient;
         _baseAddress = baseAddress.TrimEnd('/');
         _jsonOptions = jsonOptions ?? CreateDefaultJsonOptions();
+        _configureRequest = configureRequest;
+        _onRequestFailed = onRequestFailed;
     }
 
     private static JsonSerializerOptions CreateDefaultJsonOptions() => new()
@@ -41,23 +54,22 @@ public class ControllerServiceClient
     };
 
     /// <summary>
-    /// Called before sending a request. Override to add authentication headers, etc.
+    /// Called before sending a request. Override or inject a delegate via ctor to add auth headers, etc.
     /// </summary>
-    protected virtual void ConfigureRequest(HttpRequestMessage request) { }
+    protected virtual void ConfigureRequest(HttpRequestMessage request)
+    {
+        _configureRequest?.Invoke(request);
+    }
 
     /// <summary>
     /// Called when a request fails. Return true to retry the request.
     /// </summary>
-    /// <param name="response">The failed response</param>
-    /// <param name="retryCount">Current retry count (starts at 0)</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True to retry, false to throw</returns>
     protected virtual Task<bool> OnRequestFailedAsync(
         HttpResponseMessage response,
         int retryCount,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(false);
+        return _onRequestFailed?.Invoke(response, retryCount, cancellationToken) ?? Task.FromResult(false);
     }
 
     protected virtual async Task<TResponse> RequestAsync<TRequest, TResponse>(
@@ -293,6 +305,14 @@ public class ControllerServiceClient
             "GetResoniteUser", request, cancellationToken);
     }
 
+    public virtual Task<SearchResoniteUsersResponse> SearchResoniteUsersAsync(
+        SearchResoniteUsersRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<SearchResoniteUsersRequest, SearchResoniteUsersResponse>(
+            "SearchResoniteUsers", request, cancellationToken);
+    }
+
     public virtual Task<GetFriendRequestsResponse> GetFriendRequestsAsync(
         GetFriendRequestsRequest request,
         CancellationToken cancellationToken = default)
@@ -307,6 +327,22 @@ public class ControllerServiceClient
     {
         return RequestAsync<AcceptFriendRequestsRequest, AcceptFriendRequestsResponse>(
             "AcceptFriendRequests", request, cancellationToken);
+    }
+
+    public virtual Task<SendFriendRequestResponse> SendFriendRequestAsync(
+        SendFriendRequestRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<SendFriendRequestRequest, SendFriendRequestResponse>(
+            "SendFriendRequest", request, cancellationToken);
+    }
+
+    public virtual Task<RemoveContactResponse> RemoveContactAsync(
+        RemoveContactRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<RemoveContactRequest, RemoveContactResponse>(
+            "RemoveContact", request, cancellationToken);
     }
 
     public virtual Task<ListContactsResponse> ListContactsAsync(
@@ -443,6 +479,78 @@ public class ControllerServiceClient
     {
         return RequestAsync<BanUserRequest, BanUserResponse>(
             "BanUser", request, cancellationToken);
+    }
+
+    public virtual Task<ListBansResponse> ListBansAsync(
+        ListBansRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<ListBansRequest, ListBansResponse>(
+            "ListBans", request, cancellationToken);
+    }
+
+    public virtual Task<UnbanUserResponse> UnbanUserAsync(
+        UnbanUserRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<UnbanUserRequest, UnbanUserResponse>(
+            "UnbanUser", request, cancellationToken);
+    }
+
+    public virtual Task<RespawnUserResponse> RespawnUserAsync(
+        RespawnUserRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<RespawnUserRequest, RespawnUserResponse>(
+            "RespawnUser", request, cancellationToken);
+    }
+
+    public virtual Task<SpawnItemResponse> SpawnItemAsync(
+        SpawnItemRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<SpawnItemRequest, SpawnItemResponse>(
+            "SpawnItem", request, cancellationToken);
+    }
+
+    public virtual Task<SendDynamicImpulseResponse> SendDynamicImpulseAsync(
+        SendDynamicImpulseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<SendDynamicImpulseRequest, SendDynamicImpulseResponse>(
+            "SendDynamicImpulse", request, cancellationToken);
+    }
+
+    public virtual Task<IssueResoniteLinkConnectionResponse> IssueResoniteLinkConnectionAsync(
+        IssueResoniteLinkConnectionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<IssueResoniteLinkConnectionRequest, IssueResoniteLinkConnectionResponse>(
+            "IssueResoniteLinkConnection", request, cancellationToken);
+    }
+
+    public virtual Task<CreateScheduledSessionOperationResponse> CreateScheduledSessionOperationAsync(
+        CreateScheduledSessionOperationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<CreateScheduledSessionOperationRequest, CreateScheduledSessionOperationResponse>(
+            "CreateScheduledSessionOperation", request, cancellationToken);
+    }
+
+    public virtual Task<ListScheduledSessionOperationsResponse> ListScheduledSessionOperationsAsync(
+        ListScheduledSessionOperationsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<ListScheduledSessionOperationsRequest, ListScheduledSessionOperationsResponse>(
+            "ListScheduledSessionOperations", request, cancellationToken);
+    }
+
+    public virtual Task<CancelScheduledSessionOperationResponse> CancelScheduledSessionOperationAsync(
+        CancelScheduledSessionOperationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<CancelScheduledSessionOperationRequest, CancelScheduledSessionOperationResponse>(
+            "CancelScheduledSessionOperation", request, cancellationToken);
     }
 
 }

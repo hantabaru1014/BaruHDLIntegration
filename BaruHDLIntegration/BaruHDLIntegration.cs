@@ -9,7 +9,7 @@ namespace BaruHDLIntegration
     {
         public override string Name => "BaruHDLIntegration";
         public override string Author => "hantabaru1014";
-        public override string Version => "0.1.0";
+        public override string Version => "0.2.0";
 
         [AutoRegisterConfigKey]
         public static readonly ModConfigurationKey<string> ControllerGrpcAddressKey = new ModConfigurationKey<string>("ControllerGrpcAddress", "Controller base address");
@@ -30,6 +30,8 @@ namespace BaruHDLIntegration
         public static readonly ModConfigurationKey<bool> LastCheckedKeepRolesKey = new ModConfigurationKey<bool>("_LastCheckedKeepRoles", description: "", computeDefault: () => false, internalAccessOnly: true);
         [AutoRegisterConfigKey]
         public static readonly ModConfigurationKey<bool> OpenModalsInDashboardKey = new ModConfigurationKey<bool>("_OpenModalsInDashboard", description: "", computeDefault: () => false, internalAccessOnly: true);
+        [AutoRegisterConfigKey]
+        public static readonly ModConfigurationKey<string> LastSelectedGroupIdKey = new ModConfigurationKey<string>("_LastSelectedGroupId", description: "", computeDefault: () => string.Empty, internalAccessOnly: true);
 
         internal static ModConfiguration? _config;
 
@@ -52,6 +54,7 @@ namespace BaruHDLIntegration
         {
             if (_client is not null)
             {
+                _client.Dispose();
                 _client = MakeClient();
             }
         }

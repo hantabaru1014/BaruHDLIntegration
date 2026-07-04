@@ -31,10 +31,20 @@ namespace BaruHDLIntegration.Hdl
         private static int _totalCount = 0;
 
         private static List<HeadlessHost> _hostsCache = new();
+        // _hostsCache が取得されたときの group_id。切替時に invalidate するため
+        private static string? _hostsCacheGroupId;
 
         internal static void Build(Slot contentRoot)
         {
             var gen = ++_refreshGeneration;
+
+            // Panel 再構築時にグループが変わっていたらキャッシュを捨てる
+            if (_hostsCacheGroupId != HdlSelectedGroup.SelectedGroupId)
+            {
+                _hostsCache.Clear();
+                _hostsCacheGroupId = HdlSelectedGroup.SelectedGroupId;
+                _pageIndex = 0;
+            }
 
             ValueField<int> statusSelector = null!;
             ValueField<int> hostSelector = null!;
@@ -157,8 +167,14 @@ namespace BaruHDLIntegration.Hdl
                     if (_hostsCache.Count == 0)
                     {
                         // ホスト一覧は全件取得しておきたいので大きめのページサイズ
-                        var hostsRes = await client.ListHeadlessHostAsync(new ListHeadlessHostRequest { Page = new PageRequest { PageIndex = 0, PageSize = HdlUI.FetchAllPageSize } });
+                        // 選択中グループがある場合はそれで絞り込む (フィルタ選択肢とセッション一覧を揃える)
+                        var hostsRes = await client.ListHeadlessHostAsync(new ListHeadlessHostRequest
+                        {
+                            Page = new PageRequest { PageIndex = 0, PageSize = HdlUI.FetchAllPageSize },
+                            GroupId = HdlSelectedGroup.SelectedGroupId,
+                        });
                         _hostsCache = hostsRes.Hosts ?? new List<HeadlessHost>();
+                        _hostsCacheGroupId = HdlSelectedGroup.SelectedGroupId;
                     }
 
                     string? hostIdFilter = null;
@@ -173,6 +189,7 @@ namespace BaruHDLIntegration.Hdl
                         {
                             HostId = hostIdFilter,
                             Status = statusFilter,
+                            GroupId = HdlSelectedGroup.SelectedGroupId,
                         },
                         Page = new PageRequest { PageIndex = _pageIndex, PageSize = HdlUI.DefaultListPageSize },
                     };

@@ -14,8 +14,8 @@ namespace BaruHDLIntegration.Hdl
     /// </summary>
     internal static class HdlHostsPanel
     {
-        private static readonly string[] _headers = { "Name", "Account", "Status", "Version", "FPS" };
-        private static readonly float[] _weights = { 30f, 18f, 12f, 22f, 8f };
+        private static readonly string[] _headers = { "Name", "Account", "Group", "Status", "Version", "FPS" };
+        private static readonly float[] _weights = { 28f, 16f, 14f, 10f, 20f, 8f };
 
         private static int _refreshGeneration;
         private static int _pageIndex = 0;
@@ -107,6 +107,7 @@ namespace BaruHDLIntegration.Hdl
                     var req = new ListHeadlessHostRequest
                     {
                         Page = new PageRequest { PageIndex = _pageIndex, PageSize = HdlUI.DefaultListPageSize },
+                        GroupId = HdlSelectedGroup.SelectedGroupId,
                     };
                     var res = await client.ListHeadlessHostAsync(req);
                     hosts = res.Hosts ?? new List<HeadlessHost>();
@@ -155,6 +156,7 @@ namespace BaruHDLIntegration.Hdl
                             {
                                 HdlUI.FormatHostDisplayName(host),
                                 host.AccountName,
+                                HdlSelectedGroup.FormatGroupLabel(host.GroupId),
                                 host.Status.ToString(),
                                 HdlUI.FormatVersion(host.ResoniteVersion, host.AppVersion),
                                 host.Fps.ToString("F1"),

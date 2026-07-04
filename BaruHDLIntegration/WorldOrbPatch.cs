@@ -97,13 +97,16 @@ namespace BaruHDLIntegration
                 AvailableUserRoles = worldOrb.World.AllUsers
                     .Select(u => new Headless.Rpc.DefaultUserRole { UserName = u.UserName, Role = u.Role.RoleName.Value })
                     .ToList(),
-                OnStarted = response =>
+                // オーブは呼び出し元ワールド上のオブジェクトなので、ダッシュボード設定は無視して
+                // 必ずオーブと同じワールドにモーダルを配置する
+                ForceWorldFloating = true,
+                // StartWorld が非同期 job 化されたので、session の URL 反映は job 完了通知を待つ
+                OnSessionCreated = session =>
                 {
-                    var session = response.OpenedSession;
-                    if (session == null) return;
                     var sessionUris = session.CurrentState?.ConnectUris?.Select(s => new Uri(s)).ToList() ?? new List<Uri>();
                     worldOrb.RunSynchronously(() =>
                     {
+                        if (worldOrb.IsDestroyed) return;
                         worldOrb.ActiveSessionURLs = sessionUris.Count == 0
                             ? new List<Uri> { new Uri($"ressession:///{session.Id}") }
                             : sessionUris;

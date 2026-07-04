@@ -258,6 +258,34 @@ public class AcceptFriendRequestsResponse
 {
 }
 
+public class SendFriendRequestRequest
+{
+    // oneof: user
+    [JsonPropertyName("userId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserId { get; set; }
+
+    [JsonPropertyName("userName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserName { get; set; }
+
+}
+
+public class SendFriendRequestResponse
+{
+}
+
+public class RemoveContactRequest
+{
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = "";
+
+}
+
+public class RemoveContactResponse
+{
+}
+
 public class GetFriendRequestsRequest
 {
 }
@@ -308,6 +336,99 @@ public class BanUserRequest
 
 public class BanUserResponse
 {
+}
+
+public class ListBansRequest
+{
+}
+
+public class ListBansResponse
+{
+    [JsonPropertyName("bans")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<BanEntry>? Bans { get; set; } = new();
+
+}
+
+public class BanEntry
+{
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = "";
+
+    [JsonPropertyName("userName")]
+    public string UserName { get; set; } = "";
+
+    [JsonPropertyName("machineIds")]
+    public List<string>? MachineIds { get; set; } = new();
+
+}
+
+public class UnbanUserRequest
+{
+    // oneof: user
+    [JsonPropertyName("userId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserId { get; set; }
+
+    [JsonPropertyName("userName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserName { get; set; }
+
+}
+
+public class UnbanUserResponse
+{
+}
+
+public class RespawnUserRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    // oneof: user
+    [JsonPropertyName("userId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserId { get; set; }
+
+    [JsonPropertyName("userName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserName { get; set; }
+
+}
+
+public class RespawnUserResponse
+{
+}
+
+public class SpawnItemRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = "";
+
+    [JsonPropertyName("position")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Vec3? Position { get; set; }
+
+}
+
+public class SpawnItemResponse
+{
+}
+
+public class Vec3
+{
+    [JsonPropertyName("x")]
+    public float X { get; set; }
+
+    [JsonPropertyName("y")]
+    public float Y { get; set; }
+
+    [JsonPropertyName("z")]
+    public float Z { get; set; }
+
 }
 
 public class SearchUserInfoRequest
@@ -497,6 +618,9 @@ public class SaveSessionWorldRequest
 
 public class SaveSessionWorldResponse
 {
+    [JsonPropertyName("savedWorldUrl")]
+    public string SavedWorldUrl { get; set; } = "";
+
 }
 
 public class SaveAsSessionWorldRequest
@@ -723,6 +847,117 @@ public class ListUsersInSessionResponse
 
 }
 
+public class WatchHostEventsRequest
+{
+    [JsonPropertyName("afterEventId")]
+    public string AfterEventId { get; set; } = "";
+
+}
+
+public class HostEvent
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("occurredAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? OccurredAt { get; set; }
+
+    // oneof: payload
+    [JsonPropertyName("sessionStarted")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionStarted? SessionStarted { get; set; }
+
+    [JsonPropertyName("sessionEnded")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionEnded? SessionEnded { get; set; }
+
+    [JsonPropertyName("userJoinedSession")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public UserJoinedSession? UserJoinedSession { get; set; }
+
+    [JsonPropertyName("userLeftSession")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public UserLeftSession? UserLeftSession { get; set; }
+
+    [JsonPropertyName("worldSaved")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public WorldSaved? WorldSaved { get; set; }
+
+    [JsonPropertyName("sessionParametersChanged")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionParametersChanged? SessionParametersChanged { get; set; }
+
+}
+
+public class SessionStarted
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("sessionName")]
+    public string SessionName { get; set; } = "";
+
+    [JsonPropertyName("startedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? StartedAt { get; set; }
+
+}
+
+public class SessionEnded
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+}
+
+public class UserJoinedSession
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = "";
+
+    [JsonPropertyName("userName")]
+    public string UserName { get; set; } = "";
+
+}
+
+public class UserLeftSession
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = "";
+
+    [JsonPropertyName("userName")]
+    public string UserName { get; set; } = "";
+
+}
+
+public class WorldSaved
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("worldUrl")]
+    public string WorldUrl { get; set; } = "";
+
+}
+
+public class SessionParametersChanged
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("session")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Session? Session { get; set; }
+
+}
+
 public class UserInSession
 {
     [JsonPropertyName("id")]
@@ -827,6 +1062,9 @@ public class Session
 
     [JsonPropertyName("canSaveAs")]
     public bool CanSaveAs { get; set; }
+
+    [JsonPropertyName("resoniteLinkClientsCount")]
+    public int ResoniteLinkClientsCount { get; set; }
 
 }
 
@@ -1055,5 +1293,146 @@ public class RecordId
     [JsonPropertyName("ownerId")]
     public string OwnerId { get; set; } = "";
 
+}
+
+public class SendDynamicImpulseRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("tag")]
+    public string Tag { get; set; } = "";
+
+    // oneof: value
+    [JsonPropertyName("stringValue")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StringValue { get; set; }
+
+    [JsonPropertyName("intValue")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? IntValue { get; set; }
+
+    [JsonPropertyName("floatValue")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? FloatValue { get; set; }
+
+}
+
+public class SendDynamicImpulseResponse
+{
+    [JsonPropertyName("triggeredReceivers")]
+    public int TriggeredReceivers { get; set; }
+
+}
+
+public class RunGarbageCollectionRequest
+{
+}
+
+public class RunGarbageCollectionResponse
+{
+}
+
+public class GetWorldDebugStateRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+}
+
+public class GetWorldDebugStateResponse
+{
+    [JsonPropertyName("worldName")]
+    public string WorldName { get; set; } = "";
+
+    [JsonPropertyName("localWorldHandle")]
+    public int LocalWorldHandle { get; set; }
+
+    [JsonPropertyName("stage")]
+    public string Stage { get; set; } = "";
+
+    [JsonPropertyName("syncTick")]
+    public ulong SyncTick { get; set; }
+
+    [JsonPropertyName("stateVersion")]
+    public ulong StateVersion { get; set; }
+
+    [JsonPropertyName("sessionSyncLoopStage")]
+    public string SessionSyncLoopStage { get; set; } = "";
+
+    [JsonPropertyName("sessionStopProcessingFlag")]
+    public bool SessionStopProcessingFlag { get; set; }
+
+    [JsonPropertyName("sessionMessagesToProcessCount")]
+    public int SessionMessagesToProcessCount { get; set; }
+
+    [JsonPropertyName("sessionTotalProcessedMessages")]
+    public int SessionTotalProcessedMessages { get; set; }
+
+    [JsonPropertyName("sessionMessagesToTransmitCount")]
+    public int SessionMessagesToTransmitCount { get; set; }
+
+    [JsonPropertyName("slotCount")]
+    public int SlotCount { get; set; }
+
+    [JsonPropertyName("userCount")]
+    public int UserCount { get; set; }
+
+    [JsonPropertyName("activeUserCount")]
+    public int ActiveUserCount { get; set; }
+
+    [JsonPropertyName("currentlyProcessingSyncMessage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CurrentlyProcessingSyncMessage { get; set; }
+
+    [JsonPropertyName("currentlyDecodingStream")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CurrentlyDecodingStream { get; set; }
+
+}
+
+public class ResoniteLinkStreamRequest
+{
+    // oneof: payload
+    [JsonPropertyName("init")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResoniteLinkInit? Init { get; set; }
+
+    [JsonPropertyName("textFrame")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TextFrame { get; set; }
+
+    [JsonPropertyName("binaryFrame")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? BinaryFrame { get; set; }
+
+}
+
+public class ResoniteLinkInit
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+}
+
+public class ResoniteLinkStreamResponse
+{
+    // oneof: payload
+    [JsonPropertyName("ready")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResoniteLinkReady? Ready { get; set; }
+
+    [JsonPropertyName("textFrame")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TextFrame { get; set; }
+
+    [JsonPropertyName("binaryFrame")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? BinaryFrame { get; set; }
+
+}
+
+public class ResoniteLinkReady
+{
 }
 

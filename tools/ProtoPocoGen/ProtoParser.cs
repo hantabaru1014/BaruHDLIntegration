@@ -19,7 +19,9 @@ public record ProtoService(
 public record ProtoRpc(
     string Name,
     string RequestType,
-    string ResponseType
+    string ResponseType,
+    bool RequestStream,
+    bool ResponseStream
 );
 
 public record ProtoMessage(
@@ -170,17 +172,19 @@ public static class ProtoParser
     {
         var rpcs = new List<ProtoRpc>();
 
-        // Pattern: rpc MethodName(RequestType) returns (ResponseType) { }
-        // or: rpc MethodName(RequestType) returns (ResponseType);
-        var rpcPattern = @"rpc\s+(\w+)\s*\(\s*([\w.]+)\s*\)\s*returns\s*\(\s*([\w.]+)\s*\)\s*(?:\{\s*\}|;)";
+        // Pattern: rpc MethodName([stream] RequestType) returns ([stream] ResponseType) { }
+        // or: rpc MethodName([stream] RequestType) returns ([stream] ResponseType);
+        var rpcPattern = @"rpc\s+(\w+)\s*\(\s*(stream\s+)?([\w.]+)\s*\)\s*returns\s*\(\s*(stream\s+)?([\w.]+)\s*\)\s*(?:\{\s*\}|;)";
         var matches = Regex.Matches(content, rpcPattern);
 
         foreach (Match match in matches)
         {
             var rpcName = match.Groups[1].Value;
-            var requestType = match.Groups[2].Value;
-            var responseType = match.Groups[3].Value;
-            rpcs.Add(new ProtoRpc(rpcName, requestType, responseType));
+            var requestStream = match.Groups[2].Success;
+            var requestType = match.Groups[3].Value;
+            var responseStream = match.Groups[4].Success;
+            var responseType = match.Groups[5].Value;
+            rpcs.Add(new ProtoRpc(rpcName, requestType, responseType, requestStream, responseStream));
         }
 
         return new ProtoService(name, rpcs);

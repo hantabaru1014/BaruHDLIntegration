@@ -5,7 +5,11 @@
 #nullable enable
 
 using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -24,12 +28,21 @@ public class HeadlessControlServiceClient
     protected readonly HttpClient _httpClient;
     protected readonly string _baseAddress;
     protected readonly JsonSerializerOptions _jsonOptions;
+    private readonly Action<HttpRequestMessage>? _configureRequest;
+    private readonly Func<HttpResponseMessage, int, CancellationToken, Task<bool>>? _onRequestFailed;
 
-    public HeadlessControlServiceClient(HttpClient httpClient, string baseAddress, JsonSerializerOptions? jsonOptions = null)
+    public HeadlessControlServiceClient(
+        HttpClient httpClient,
+        string baseAddress,
+        JsonSerializerOptions? jsonOptions = null,
+        Action<HttpRequestMessage>? configureRequest = null,
+        Func<HttpResponseMessage, int, CancellationToken, Task<bool>>? onRequestFailed = null)
     {
         _httpClient = httpClient;
         _baseAddress = baseAddress.TrimEnd('/');
         _jsonOptions = jsonOptions ?? CreateDefaultJsonOptions();
+        _configureRequest = configureRequest;
+        _onRequestFailed = onRequestFailed;
     }
 
     private static JsonSerializerOptions CreateDefaultJsonOptions() => new()
@@ -39,23 +52,22 @@ public class HeadlessControlServiceClient
     };
 
     /// <summary>
-    /// Called before sending a request. Override to add authentication headers, etc.
+    /// Called before sending a request. Override or inject a delegate via ctor to add auth headers, etc.
     /// </summary>
-    protected virtual void ConfigureRequest(HttpRequestMessage request) { }
+    protected virtual void ConfigureRequest(HttpRequestMessage request)
+    {
+        _configureRequest?.Invoke(request);
+    }
 
     /// <summary>
     /// Called when a request fails. Return true to retry the request.
     /// </summary>
-    /// <param name="response">The failed response</param>
-    /// <param name="retryCount">Current retry count (starts at 0)</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True to retry, false to throw</returns>
     protected virtual Task<bool> OnRequestFailedAsync(
         HttpResponseMessage response,
         int retryCount,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(false);
+        return _onRequestFailed?.Invoke(response, retryCount, cancellationToken) ?? Task.FromResult(false);
     }
 
     protected virtual async Task<TResponse> RequestAsync<TRequest, TResponse>(
@@ -89,6 +101,100 @@ public class HeadlessControlServiceClient
             var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
             return JsonSerializer.Deserialize<TResponse>(responseJson, _jsonOptions)!;
         }
+    }
+
+    protected virtual async IAsyncEnumerable<TResponse> StreamAsync<TRequest, TResponse>(
+        string rpcName,
+        TRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var retryCount = 0;
+        while (true)
+        {
+            var payloadJson = JsonSerializer.Serialize(request, _jsonOptions);
+            var payloadBytes = Encoding.UTF8.GetBytes(payloadJson);
+            var envelope = new byte[5 + payloadBytes.Length];
+            envelope[0] = 0; // flags
+            BinaryPrimitives.WriteUInt32BigEndian(envelope.AsSpan(1, 4), (uint)payloadBytes.Length);
+            Buffer.BlockCopy(payloadBytes, 0, envelope, 5, payloadBytes.Length);
+
+            var httpRequest = new HttpRequestMessage(HttpMethod.Post,
+                $"{_baseAddress}/{ServiceName}/{rpcName}");
+            httpRequest.Content = new ByteArrayContent(envelope);
+            httpRequest.Content.Headers.ContentType =
+                new System.Net.Http.Headers.MediaTypeHeaderValue("application/connect+json");
+            httpRequest.Headers.TryAddWithoutValidation("Connect-Protocol-Version", "1");
+
+            ConfigureRequest(httpRequest);
+
+            var response = await _httpClient.SendAsync(
+                httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                if (await OnRequestFailedAsync(response, retryCount, cancellationToken))
+                {
+                    retryCount++;
+                    response.Dispose();
+                    continue;
+                }
+                response.EnsureSuccessStatusCode();
+            }
+
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var header = new byte[5];
+            while (true)
+            {
+                if (!await ReadExactAsync(stream, header, 5, cancellationToken))
+                {
+                    yield break;
+                }
+                var flags = header[0];
+                var length = BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(1, 4));
+                var body = length == 0 ? Array.Empty<byte>() : new byte[length];
+                if (length > 0 && !await ReadExactAsync(stream, body, (int)length, cancellationToken))
+                {
+                    yield break;
+                }
+
+                if ((flags & 0x02) != 0)
+                {
+                    // Trailer frame: check for error payload.
+                    if (length > 0)
+                    {
+                        var trailerJson = Encoding.UTF8.GetString(body);
+                        using var doc = JsonDocument.Parse(trailerJson);
+                        if (doc.RootElement.TryGetProperty("error", out var errorEl))
+                        {
+                            var code = errorEl.TryGetProperty("code", out var c) ? c.GetString() : "unknown";
+                            var msg = errorEl.TryGetProperty("message", out var m) ? m.GetString() : "";
+                            throw new HttpRequestException($"connect stream error: {code}: {msg}");
+                        }
+                    }
+                    yield break;
+                }
+
+                if (length == 0) continue;
+                // ReadOnlySpan で直接デシリアライズし、中間 string 生成を回避
+                var message = JsonSerializer.Deserialize<TResponse>(new ReadOnlySpan<byte>(body, 0, (int)length), _jsonOptions);
+                if (message != null)
+                {
+                    yield return message;
+                }
+            }
+        }
+    }
+
+    private static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, int count, CancellationToken cancellationToken)
+    {
+        var offset = 0;
+        while (offset < count)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(offset, count - offset), cancellationToken);
+            if (read == 0) return offset > 0 ? throw new EndOfStreamException("unexpected EOF") : false;
+            offset += read;
+        }
+        return true;
     }
 
     public virtual Task<GetAboutResponse> GetAboutAsync(
@@ -219,6 +325,38 @@ public class HeadlessControlServiceClient
             "BanUser", request, cancellationToken);
     }
 
+    public virtual Task<ListBansResponse> ListBansAsync(
+        ListBansRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<ListBansRequest, ListBansResponse>(
+            "ListBans", request, cancellationToken);
+    }
+
+    public virtual Task<UnbanUserResponse> UnbanUserAsync(
+        UnbanUserRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<UnbanUserRequest, UnbanUserResponse>(
+            "UnbanUser", request, cancellationToken);
+    }
+
+    public virtual Task<RespawnUserResponse> RespawnUserAsync(
+        RespawnUserRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<RespawnUserRequest, RespawnUserResponse>(
+            "RespawnUser", request, cancellationToken);
+    }
+
+    public virtual Task<SpawnItemResponse> SpawnItemAsync(
+        SpawnItemRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<SpawnItemRequest, SpawnItemResponse>(
+            "SpawnItem", request, cancellationToken);
+    }
+
     public virtual Task<GetHostSettingsResponse> GetHostSettingsAsync(
         GetHostSettingsRequest request,
         CancellationToken cancellationToken = default)
@@ -259,6 +397,48 @@ public class HeadlessControlServiceClient
             "GetStartupConfigToRestore", request, cancellationToken);
     }
 
+    public virtual IAsyncEnumerable<DownloadSessionWorldResponse> DownloadSessionWorldAsync(
+        DownloadSessionWorldRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return StreamAsync<DownloadSessionWorldRequest, DownloadSessionWorldResponse>(
+            "DownloadSessionWorld", request, cancellationToken);
+    }
+
+    // NOTE: client-streaming RPC ResoniteLinkStream is not supported by this generator.
+
+    public virtual IAsyncEnumerable<HostEvent> WatchHostEventsAsync(
+        WatchHostEventsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return StreamAsync<WatchHostEventsRequest, HostEvent>(
+            "WatchHostEvents", request, cancellationToken);
+    }
+
+    public virtual Task<SendDynamicImpulseResponse> SendDynamicImpulseAsync(
+        SendDynamicImpulseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<SendDynamicImpulseRequest, SendDynamicImpulseResponse>(
+            "SendDynamicImpulse", request, cancellationToken);
+    }
+
+    public virtual Task<RunGarbageCollectionResponse> RunGarbageCollectionAsync(
+        RunGarbageCollectionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<RunGarbageCollectionRequest, RunGarbageCollectionResponse>(
+            "RunGarbageCollection", request, cancellationToken);
+    }
+
+    public virtual Task<GetWorldDebugStateResponse> GetWorldDebugStateAsync(
+        GetWorldDebugStateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<GetWorldDebugStateRequest, GetWorldDebugStateResponse>(
+            "GetWorldDebugState", request, cancellationToken);
+    }
+
     public virtual Task<GetAccountInfoResponse> GetAccountInfoAsync(
         GetAccountInfoRequest request,
         CancellationToken cancellationToken = default)
@@ -297,6 +477,22 @@ public class HeadlessControlServiceClient
     {
         return RequestAsync<AcceptFriendRequestsRequest, AcceptFriendRequestsResponse>(
             "AcceptFriendRequests", request, cancellationToken);
+    }
+
+    public virtual Task<SendFriendRequestResponse> SendFriendRequestAsync(
+        SendFriendRequestRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<SendFriendRequestRequest, SendFriendRequestResponse>(
+            "SendFriendRequest", request, cancellationToken);
+    }
+
+    public virtual Task<RemoveContactResponse> RemoveContactAsync(
+        RemoveContactRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<RemoveContactRequest, RemoveContactResponse>(
+            "RemoveContact", request, cancellationToken);
     }
 
     public virtual Task<ListContactsResponse> ListContactsAsync(

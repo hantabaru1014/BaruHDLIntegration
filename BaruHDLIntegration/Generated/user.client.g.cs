@@ -5,7 +5,11 @@
 #nullable enable
 
 using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -24,12 +28,21 @@ public class UserServiceClient
     protected readonly HttpClient _httpClient;
     protected readonly string _baseAddress;
     protected readonly JsonSerializerOptions _jsonOptions;
+    private readonly Action<HttpRequestMessage>? _configureRequest;
+    private readonly Func<HttpResponseMessage, int, CancellationToken, Task<bool>>? _onRequestFailed;
 
-    public UserServiceClient(HttpClient httpClient, string baseAddress, JsonSerializerOptions? jsonOptions = null)
+    public UserServiceClient(
+        HttpClient httpClient,
+        string baseAddress,
+        JsonSerializerOptions? jsonOptions = null,
+        Action<HttpRequestMessage>? configureRequest = null,
+        Func<HttpResponseMessage, int, CancellationToken, Task<bool>>? onRequestFailed = null)
     {
         _httpClient = httpClient;
         _baseAddress = baseAddress.TrimEnd('/');
         _jsonOptions = jsonOptions ?? CreateDefaultJsonOptions();
+        _configureRequest = configureRequest;
+        _onRequestFailed = onRequestFailed;
     }
 
     private static JsonSerializerOptions CreateDefaultJsonOptions() => new()
@@ -39,23 +52,22 @@ public class UserServiceClient
     };
 
     /// <summary>
-    /// Called before sending a request. Override to add authentication headers, etc.
+    /// Called before sending a request. Override or inject a delegate via ctor to add auth headers, etc.
     /// </summary>
-    protected virtual void ConfigureRequest(HttpRequestMessage request) { }
+    protected virtual void ConfigureRequest(HttpRequestMessage request)
+    {
+        _configureRequest?.Invoke(request);
+    }
 
     /// <summary>
     /// Called when a request fails. Return true to retry the request.
     /// </summary>
-    /// <param name="response">The failed response</param>
-    /// <param name="retryCount">Current retry count (starts at 0)</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True to retry, false to throw</returns>
     protected virtual Task<bool> OnRequestFailedAsync(
         HttpResponseMessage response,
         int retryCount,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(false);
+        return _onRequestFailed?.Invoke(response, retryCount, cancellationToken) ?? Task.FromResult(false);
     }
 
     protected virtual async Task<TResponse> RequestAsync<TRequest, TResponse>(
@@ -129,6 +141,38 @@ public class UserServiceClient
     {
         return RequestAsync<ChangePasswordRequest, ChangePasswordResponse>(
             "ChangePassword", request, cancellationToken);
+    }
+
+    public virtual Task<ListUsersResponse> ListUsersAsync(
+        ListUsersRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<ListUsersRequest, ListUsersResponse>(
+            "ListUsers", request, cancellationToken);
+    }
+
+    public virtual Task<GetUserResponse> GetUserAsync(
+        GetUserRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<GetUserRequest, GetUserResponse>(
+            "GetUser", request, cancellationToken);
+    }
+
+    public virtual Task<CreateRegistrationTokenResponse> CreateRegistrationTokenAsync(
+        CreateRegistrationTokenRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<CreateRegistrationTokenRequest, CreateRegistrationTokenResponse>(
+            "CreateRegistrationToken", request, cancellationToken);
+    }
+
+    public virtual Task<DeleteUserResponse> DeleteUserAsync(
+        DeleteUserRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<DeleteUserRequest, DeleteUserResponse>(
+            "DeleteUser", request, cancellationToken);
     }
 
 }

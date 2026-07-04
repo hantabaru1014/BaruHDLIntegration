@@ -84,3 +84,90 @@ public class ChangePasswordResponse
 {
 }
 
+public class User
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("resoniteId")]
+    public string ResoniteId { get; set; } = "";
+
+    [JsonPropertyName("iconUrl")]
+    public string IconUrl { get; set; } = "";
+
+    [JsonPropertyName("createdAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? CreatedAt { get; set; }
+
+    [JsonPropertyName("updatedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? UpdatedAt { get; set; }
+
+}
+
+public class ListUsersRequest
+{
+}
+
+public class ListUsersResponse
+{
+    [JsonPropertyName("users")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<User>? Users { get; set; } = new();
+
+}
+
+public class GetUserRequest
+{
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = "";
+
+}
+
+public class GetUserResponse
+{
+    [JsonPropertyName("user")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public User? User { get; set; }
+
+}
+
+public class CreateRegistrationTokenRequest
+{
+    [JsonPropertyName("resoniteId")]
+    public string ResoniteId { get; set; } = "";
+
+    [JsonPropertyName("personalRoleId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PersonalRoleId { get; set; }
+
+}
+
+public class CreateRegistrationTokenResponse
+{
+    [JsonPropertyName("token")]
+    public string Token { get; set; } = "";
+
+    [JsonPropertyName("expiresAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? ExpiresAt { get; set; }
+
+    [JsonPropertyName("resoniteUserName")]
+    public string ResoniteUserName { get; set; } = "";
+
+    [JsonPropertyName("iconUrl")]
+    public string IconUrl { get; set; } = "";
+
+}
+
+public class DeleteUserRequest
+{
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = "";
+
+}
+
+public class DeleteUserResponse
+{
+}
+

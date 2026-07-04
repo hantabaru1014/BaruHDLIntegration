@@ -16,12 +16,6 @@ namespace BaruHDLIntegration.Hdl
     /// </summary>
     internal static class HdlHostStartModal
     {
-        private static readonly HeadlessHostAutoUpdatePolicy[] _autoUpdatePolicies = new[]
-        {
-            HeadlessHostAutoUpdatePolicy.Never,
-            HeadlessHostAutoUpdatePolicy.UsersEmpty,
-        };
-
         internal static void Open(World invokerWorld, Action? onChanged = null)
         {
             var world = HdlUI.ResolveModalWorld(invokerWorld);
@@ -33,8 +27,14 @@ namespace BaruHDLIntegration.Hdl
                 try
                 {
                     var client = BaruHDLIntegration.GetClient();
-                    // アカウント一覧とイメージタグ一覧は独立しているので並列化
-                    var accTask = client.ListHeadlessAccountsAsync(new ListHeadlessAccountsRequest { Page = new PageRequest { PageIndex = 0, PageSize = HdlUI.FetchAllPageSize } });
+                    // sidebar でグループが選択されているならその group で account を絞る。
+                    // 「全て」の時は全 readable アカウントを取得し、モーダル内のグループセレクタで
+                    // client-side にフィルタする。
+                    var accTask = client.ListHeadlessAccountsAsync(new ListHeadlessAccountsRequest
+                    {
+                        Page = new PageRequest { PageIndex = 0, PageSize = HdlUI.FetchAllPageSize },
+                        GroupId = HdlSelectedGroup.SelectedGroupId,
+                    });
                     var tagTask = client.ListHeadlessHostImageTagsAsync(new ListHeadlessHostImageTagsRequest());
                     await Task.WhenAll(accTask, tagTask);
                     accounts = accTask.Result.Accounts ?? new List<HeadlessAccount>();
@@ -51,7 +51,7 @@ namespace BaruHDLIntegration.Hdl
 
         private static void BuildModal(World world, List<HeadlessAccount>? accounts, List<ListHeadlessHostImageTagsResponse.Types.ContainerImage>? tags, string? error, Action? onChanged)
         {
-            var (rootSlot, ui) = HdlUI.BuildModalPanel(world, "ホスト開始", new float2(900f, 720f));
+            var (rootSlot, ui) = HdlUI.BuildModalPanel(world, "ホスト開始", new float2(900f, 780f));
             if (error != null)
             {
                 ui.Text($"エラー: {error}");
@@ -70,11 +70,74 @@ namespace BaruHDLIntegration.Hdl
             var nameField = ui.HorizontalElementWithLabel("Name", 0.4f, () => ui.TextField());
             nameField.TargetString = "";
 
-            var accountSelector = ui.HorizontalElementWithLabel("Headless Account", 0.4f, () =>
+            // 作成先グループ: sidebar で「全て」を選んでいる場合は選択肢を表示。
+            // 特定グループが選択されているならその値に固定し、read-only 表示。
+            var sidebarGroupId = HdlSelectedGroup.SelectedGroupId;
+            ValueField<int>? groupSelector = null;
+            List<Group> selectableGroups = new();
+
+            // アカウント行 (グループに応じて再構築する) の state
+            Slot? accountRowSlot = null;
+            List<HeadlessAccount> filteredAccounts = new();
+            ValueField<int>? accountSelector = null;
+
+            string? GetGroupIdForFilter() => sidebarGroupId
+                ?? (groupSelector != null && selectableGroups.Count > 0
+                    ? selectableGroups[Math.Clamp(groupSelector.Value.Value, 0, selectableGroups.Count - 1)].Id
+                    : null);
+
+            void RebuildAccountRow()
             {
-                var labels = accounts.Select(a => $"{a.UserName}").ToList();
-                return HdlUI.BuildArrowSelector(rootSlot, ui, labels, 0);
-            });
+                if (accountRowSlot == null || accountRowSlot.IsDestroyed) return;
+                accountRowSlot.DestroyChildren();
+                var rowUi = new UIBuilder(accountRowSlot);
+                RadiantUI_Constants.SetupDefaultStyle(rowUi);
+
+                var groupIdForFilter = GetGroupIdForFilter();
+                filteredAccounts = groupIdForFilter == null
+                    ? accounts
+                    : accounts.Where(a => a.GroupId == groupIdForFilter).ToList();
+
+                accountSelector = rowUi.HorizontalElementWithLabel("Headless Account", 0.4f, () =>
+                {
+                    if (filteredAccounts.Count == 0)
+                    {
+                        rowUi.Text("(このグループにはアカウントがありません)", bestFit: true);
+                        return accountRowSlot.AttachComponent<ValueField<int>>();
+                    }
+                    var accLabels = filteredAccounts.Select(a => $"{a.UserName}").ToList();
+                    return HdlUI.BuildArrowSelector(rootSlot, rowUi, accLabels, 0);
+                });
+            }
+
+            if (sidebarGroupId != null)
+            {
+                HdlUI.BuildReadOnlyField(ui, "作成先グループ", HdlSelectedGroup.FormatGroupLabel(sidebarGroupId));
+            }
+            else
+            {
+                // personal を先頭に並べる (デフォルト選択候補)
+                selectableGroups = HdlSelectedGroup.Groups
+                    .OrderBy(g => g.Type == GroupType.Personal ? 0 : 1)
+                    .ThenBy(g => g.Name)
+                    .ToList();
+                if (selectableGroups.Count == 0)
+                {
+                    ui.Text("(グループ一覧が取得できていません。サイドバーの ↻ で再取得してください)", bestFit: true);
+                }
+                else
+                {
+                    var labels = selectableGroups.Select(g => HdlSelectedGroup.FormatGroupLabel(g.Id)).ToList();
+                    groupSelector = ui.HorizontalElementWithLabel("作成先グループ", 0.4f, () =>
+                        HdlUI.BuildArrowSelector(rootSlot, ui, labels, 0, onChange: _ => RebuildAccountRow()));
+                }
+            }
+
+            // アカウント行 placeholder
+            accountRowSlot = ui.Empty("AccountRow");
+            accountRowSlot.AttachComponent<HorizontalLayout>();
+            accountRowSlot.AttachComponent<LayoutElement>().MinHeight.Value = 32f;
+            RebuildAccountRow();
 
             var tagLabels = new List<string> { "(latest)" };
             tagLabels.AddRange(tags.Select(t => $"{t.Tag} - {t.ResoniteVersion}"));
@@ -82,7 +145,7 @@ namespace BaruHDLIntegration.Hdl
                 HdlUI.BuildArrowSelector(rootSlot, ui, tagLabels, 0));
 
             var policySelector = ui.HorizontalElementWithLabel("Auto Update Policy", 0.4f, () =>
-                HdlUI.BuildArrowSelector(rootSlot, ui, _autoUpdatePolicies.Select(p => p.ToString()).ToList(), 0));
+                HdlUI.BuildArrowSelector(rootSlot, ui, HdlUI.AutoUpdatePolicyLabels, 0));
 
             var memoField = ui.HorizontalElementWithLabel("Memo", 0.4f, () => ui.TextField());
             memoField.TargetString = "";
@@ -102,10 +165,17 @@ namespace BaruHDLIntegration.Hdl
             {
                 await HdlUI.RunWithBusyButton(startBtn, "Starting...", async () =>
                 {
+                    if (filteredAccounts.Count == 0 || accountSelector == null)
+                    {
+                        throw new InvalidOperationException("アカウントが選択できません");
+                    }
                     var client = BaruHDLIntegration.GetClient();
-                    var account = accounts[accountSelector.Value.Value];
+                    var account = filteredAccounts[Math.Clamp(accountSelector.Value.Value, 0, filteredAccounts.Count - 1)];
                     string? imageTag = tagSelector.Value.Value == 0 ? null : tags[tagSelector.Value.Value - 1].Tag;
-                    var policy = _autoUpdatePolicies[policySelector.Value.Value];
+                    var policy = HdlUI.AutoUpdatePolicies[policySelector.Value.Value];
+
+                    // 作成先グループの決定: sidebar 選択 > モーダル内選択 > null (=personal)
+                    string? targetGroupId = GetGroupIdForFilter();
 
                     StartupConfig? startupConfig = null;
                     if (!string.IsNullOrEmpty(universeIdField.TargetString) || !string.IsNullOrEmpty(usernameField.TargetString))
@@ -125,6 +195,9 @@ namespace BaruHDLIntegration.Hdl
                         AutoUpdatePolicy = policy,
                         Memo = memoField.TargetString,
                         StartupConfig = startupConfig,
+                        // account.group_id と一致する必要がある。
+                        // sidebar / モーダル内選択の group_id を渡す (null = personal)
+                        GroupId = targetGroupId,
                     };
                     await client.StartHeadlessHostAsync(req);
                     onChanged?.Invoke();

@@ -69,6 +69,29 @@ public enum HeadlessHostAutoUpdatePolicy
 
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ScheduledOperationStatus
+{
+    [JsonStringEnumMemberName("SCHEDULED_OPERATION_STATUS_UNSPECIFIED")]
+    Unspecified = 0,
+
+    [JsonStringEnumMemberName("SCHEDULED_OPERATION_STATUS_PENDING")]
+    Pending = 1,
+
+    [JsonStringEnumMemberName("SCHEDULED_OPERATION_STATUS_RUNNING")]
+    Running = 2,
+
+    [JsonStringEnumMemberName("SCHEDULED_OPERATION_STATUS_SUCCEEDED")]
+    Succeeded = 3,
+
+    [JsonStringEnumMemberName("SCHEDULED_OPERATION_STATUS_FAILED")]
+    Failed = 4,
+
+    [JsonStringEnumMemberName("SCHEDULED_OPERATION_STATUS_CANCELED")]
+    Canceled = 5,
+
+}
+
 public class RefetchHeadlessAccountInfoRequest
 {
     [JsonPropertyName("accountId")]
@@ -247,12 +270,16 @@ public class StartHeadlessHostRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Memo { get; set; }
 
+    [JsonPropertyName("groupId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GroupId { get; set; }
+
 }
 
 public class StartHeadlessHostResponse
 {
-    [JsonPropertyName("hostId")]
-    public string HostId { get; set; } = "";
+    [JsonPropertyName("jobId")]
+    public string JobId { get; set; } = "";
 
 }
 
@@ -263,6 +290,10 @@ public class CreateHeadlessAccountRequest
 
     [JsonPropertyName("password")]
     public string Password { get; set; } = "";
+
+    [JsonPropertyName("groupId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GroupId { get; set; }
 
 }
 
@@ -275,6 +306,10 @@ public class ListHeadlessAccountsRequest
     [JsonPropertyName("page")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PageRequest? Page { get; set; }
+
+    [JsonPropertyName("groupId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GroupId { get; set; }
 
 }
 
@@ -374,9 +409,8 @@ public class RestartHeadlessHostRequest
 
 public class RestartHeadlessHostResponse
 {
-    [JsonPropertyName("newHostId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? NewHostId { get; set; }
+    [JsonPropertyName("jobId")]
+    public string JobId { get; set; } = "";
 
 }
 
@@ -411,6 +445,10 @@ public class UpdateHeadlessHostSettingsRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? UniverseId { get; set; }
 
+    [JsonPropertyName("autoUpdatePolicy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HeadlessHostAutoUpdatePolicy? AutoUpdatePolicy { get; set; }
+
 }
 
 public class UpdateHeadlessHostSettingsResponse
@@ -426,6 +464,9 @@ public class ShutdownHeadlessHostRequest
 
 public class ShutdownHeadlessHostResponse
 {
+    [JsonPropertyName("jobId")]
+    public string JobId { get; set; } = "";
+
 }
 
 public class KillHeadlessHostRequest
@@ -537,6 +578,136 @@ public class BanUserResponse
 {
 }
 
+public class ListBansRequest
+{
+    [JsonPropertyName("hostId")]
+    public string HostId { get; set; } = "";
+
+}
+
+public class ListBansResponse
+{
+    [JsonPropertyName("bans")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<BanEntry>? Bans { get; set; } = new();
+
+}
+
+public class UnbanUserRequest
+{
+    [JsonPropertyName("hostId")]
+    public string HostId { get; set; } = "";
+
+    [JsonPropertyName("parameters")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Headless.Rpc.UnbanUserRequest? Parameters { get; set; }
+
+}
+
+public class UnbanUserResponse
+{
+}
+
+public class RespawnUserRequest
+{
+    [JsonPropertyName("hostId")]
+    public string HostId { get; set; } = "";
+
+    [JsonPropertyName("parameters")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Headless.Rpc.RespawnUserRequest? Parameters { get; set; }
+
+}
+
+public class RespawnUserResponse
+{
+}
+
+public class SpawnItemRequest
+{
+    [JsonPropertyName("hostId")]
+    public string HostId { get; set; } = "";
+
+    [JsonPropertyName("parameters")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Headless.Rpc.SpawnItemRequest? Parameters { get; set; }
+
+}
+
+public class SpawnItemResponse
+{
+}
+
+public class SendDynamicImpulseRequest
+{
+    [JsonPropertyName("hostId")]
+    public string HostId { get; set; } = "";
+
+    [JsonPropertyName("parameters")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Headless.Rpc.SendDynamicImpulseRequest? Parameters { get; set; }
+
+}
+
+public class SendDynamicImpulseResponse
+{
+    [JsonPropertyName("triggeredReceivers")]
+    public int TriggeredReceivers { get; set; }
+
+}
+
+public class SendFriendRequestRequest
+{
+    [JsonPropertyName("headlessAccountId")]
+    public string HeadlessAccountId { get; set; } = "";
+
+    // oneof: user
+    [JsonPropertyName("userId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserId { get; set; }
+
+    [JsonPropertyName("userName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserName { get; set; }
+
+}
+
+public class SendFriendRequestResponse
+{
+}
+
+public class RemoveContactRequest
+{
+    [JsonPropertyName("headlessAccountId")]
+    public string HeadlessAccountId { get; set; } = "";
+
+    [JsonPropertyName("targetUserId")]
+    public string TargetUserId { get; set; } = "";
+
+}
+
+public class RemoveContactResponse
+{
+}
+
+public class IssueResoniteLinkConnectionRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+}
+
+public class IssueResoniteLinkConnectionResponse
+{
+    [JsonPropertyName("wsPath")]
+    public string WsPath { get; set; } = "";
+
+    [JsonPropertyName("expiresAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? ExpiresAt { get; set; }
+
+}
+
 public class FetchWorldInfoRequest
 {
     [JsonPropertyName("hostId")]
@@ -627,6 +798,10 @@ public class ListHeadlessHostRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PageRequest? Page { get; set; }
 
+    [JsonPropertyName("groupId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GroupId { get; set; }
+
 }
 
 public class ListHeadlessHostResponse
@@ -688,6 +863,10 @@ public class SearchSessionsRequest
             [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
             public SessionStatus? Status { get; set; }
 
+            [JsonPropertyName("groupId")]
+            [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+            public string? GroupId { get; set; }
+
         }
 
     }
@@ -745,13 +924,16 @@ public class StartWorldRequest
     [JsonPropertyName("memo")]
     public string Memo { get; set; } = "";
 
+    [JsonPropertyName("groupId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GroupId { get; set; }
+
 }
 
 public class StartWorldResponse
 {
-    [JsonPropertyName("openedSession")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public Session? OpenedSession { get; set; }
+    [JsonPropertyName("jobId")]
+    public string JobId { get; set; } = "";
 
 }
 
@@ -768,6 +950,9 @@ public class StopSessionRequest
 
 public class StopSessionResponse
 {
+    [JsonPropertyName("jobId")]
+    public string JobId { get; set; } = "";
+
 }
 
 public class DeleteEndedSessionRequest
@@ -1024,6 +1209,13 @@ public class HeadlessHost
     [JsonPropertyName("instanceId")]
     public int InstanceId { get; set; }
 
+    [JsonPropertyName("groupId")]
+    public string GroupId { get; set; } = "";
+
+    [JsonPropertyName("createdBy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CreatedBy { get; set; }
+
 }
 
 public class Session
@@ -1056,6 +1248,7 @@ public class Session
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Headless.Rpc.Session? CurrentState { get; set; }
 
+    [Obsolete]
     [JsonPropertyName("ownerId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OwnerId { get; set; }
@@ -1065,6 +1258,13 @@ public class Session
 
     [JsonPropertyName("memo")]
     public string Memo { get; set; } = "";
+
+    [JsonPropertyName("groupId")]
+    public string GroupId { get; set; } = "";
+
+    [JsonPropertyName("createdBy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CreatedBy { get; set; }
 
 }
 
@@ -1078,6 +1278,13 @@ public class HeadlessAccount
 
     [JsonPropertyName("iconUrl")]
     public string IconUrl { get; set; } = "";
+
+    [JsonPropertyName("groupId")]
+    public string GroupId { get; set; } = "";
+
+    [JsonPropertyName("createdBy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CreatedBy { get; set; }
 
 }
 
@@ -1111,6 +1318,21 @@ public class GetResoniteUserResponse
 
     [JsonPropertyName("iconUrl")]
     public string IconUrl { get; set; } = "";
+
+}
+
+public class SearchResoniteUsersRequest
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+}
+
+public class SearchResoniteUsersResponse
+{
+    [JsonPropertyName("users")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<UserInfo>? Users { get; set; } = new();
 
 }
 
@@ -1213,6 +1435,196 @@ public class SendContactMessageRequest
 }
 
 public class SendContactMessageResponse
+{
+}
+
+public class ScheduledOperation
+{
+    // oneof: operation
+    [JsonPropertyName("startSession")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StartWorldRequest? StartSession { get; set; }
+
+    [JsonPropertyName("stopSession")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StopSessionRequest? StopSession { get; set; }
+
+    [JsonPropertyName("updateParameters")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public UpdateSessionParametersRequest? UpdateParameters { get; set; }
+
+    [JsonPropertyName("updateExtraSettings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public UpdateSessionExtraSettingsRequest? UpdateExtraSettings { get; set; }
+
+}
+
+public class ScheduledTrigger
+{
+    // oneof: trigger
+    [JsonPropertyName("time")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TimeTrigger? Time { get; set; }
+
+    [JsonPropertyName("sessionUserCount")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionUserCountTrigger? SessionUserCount { get; set; }
+
+}
+
+public class TimeTrigger
+{
+    [JsonPropertyName("scheduledAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? ScheduledAt { get; set; }
+
+}
+
+public class SessionUserCountTrigger
+{
+    public static class Types
+    {
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public enum Comparator
+        {
+            [JsonStringEnumMemberName("COMPARATOR_UNSPECIFIED")]
+            Unspecified = 0,
+
+            [JsonStringEnumMemberName("COMPARATOR_LESS_OR_EQUAL")]
+            LessOrEqual = 1,
+
+            [JsonStringEnumMemberName("COMPARATOR_GREATER_OR_EQUAL")]
+            GreaterOrEqual = 2,
+
+        }
+
+    }
+
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("comparator")]
+    public Types.Comparator Comparator { get; set; }
+
+    [JsonPropertyName("threshold")]
+    public int Threshold { get; set; }
+
+}
+
+public class ScheduledSessionOperation
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("operation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ScheduledOperation? Operation { get; set; }
+
+    [JsonPropertyName("trigger")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ScheduledTrigger? Trigger { get; set; }
+
+    [JsonPropertyName("nextFireAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? NextFireAt { get; set; }
+
+    [JsonPropertyName("hostId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? HostId { get; set; }
+
+    [JsonPropertyName("sessionId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SessionId { get; set; }
+
+    [JsonPropertyName("status")]
+    public ScheduledOperationStatus Status { get; set; }
+
+    [JsonPropertyName("lastError")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LastError { get; set; }
+
+    [JsonPropertyName("executedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? ExecutedAt { get; set; }
+
+    [JsonPropertyName("createdBy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CreatedBy { get; set; }
+
+    [JsonPropertyName("createdAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? CreatedAt { get; set; }
+
+    [JsonPropertyName("updatedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? UpdatedAt { get; set; }
+
+}
+
+public class CreateScheduledSessionOperationRequest
+{
+    [JsonPropertyName("operation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ScheduledOperation? Operation { get; set; }
+
+    [JsonPropertyName("trigger")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ScheduledTrigger? Trigger { get; set; }
+
+}
+
+public class CreateScheduledSessionOperationResponse
+{
+    [JsonPropertyName("scheduledOperation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ScheduledSessionOperation? ScheduledOperation { get; set; }
+
+}
+
+public class ListScheduledSessionOperationsRequest
+{
+    [JsonPropertyName("sessionId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SessionId { get; set; }
+
+    [JsonPropertyName("hostId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? HostId { get; set; }
+
+    [JsonPropertyName("status")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ScheduledOperationStatus? Status { get; set; }
+
+    [JsonPropertyName("page")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PageRequest? Page { get; set; }
+
+    [JsonPropertyName("groupId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GroupId { get; set; }
+
+}
+
+public class ListScheduledSessionOperationsResponse
+{
+    [JsonPropertyName("scheduledOperations")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ScheduledSessionOperation>? ScheduledOperations { get; set; } = new();
+
+    [JsonPropertyName("page")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PageResponse? Page { get; set; }
+
+}
+
+public class CancelScheduledSessionOperationRequest
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+}
+
+public class CancelScheduledSessionOperationResponse
 {
 }
 

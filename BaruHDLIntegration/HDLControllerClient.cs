@@ -33,13 +33,33 @@ namespace BaruHDLIntegration
         private readonly string _password;
         private string? _jwtToken;
 
+        internal NotificationServiceClient NotificationService { get; }
+        internal GroupServiceClient GroupService { get; }
+        internal NotificationSubscriber Notifications { get; }
+
         public HDLControllerClient(string baseAddress, string id, string password, HttpClientHandler? clientHandler)
-            : base(CreateHttpClient(clientHandler), baseAddress, _sharedJsonOptions)
+            : this(CreateHttpClient(clientHandler), baseAddress, id, password)
+        {
+        }
+
+        private HDLControllerClient(HttpClient httpClient, string baseAddress, string id, string password)
+            : base(httpClient, baseAddress, _sharedJsonOptions)
         {
             _id = id;
             _password = password;
-            // UserServiceClientも同じHttpClientとJsonOptionsを共有
-            _userService = new UserServiceClient(_httpClient, baseAddress, _sharedJsonOptions);
+            // 認証系は 3 クライアント共通なので delegate として base に注入する。
+            // base 側は override より delegate を優先する仕様 (生成コード参照)。
+            // ControllerServiceClient の分は自身の override で処理するため注入不要。
+            _userService = new UserServiceClient(httpClient, baseAddress, _sharedJsonOptions);
+            NotificationService = new NotificationServiceClient(
+                httpClient, baseAddress, _sharedJsonOptions,
+                configureRequest: AttachAuthHeader,
+                onRequestFailed: HandleAuthFailureAsync);
+            GroupService = new GroupServiceClient(
+                httpClient, baseAddress, _sharedJsonOptions,
+                configureRequest: AttachAuthHeader,
+                onRequestFailed: HandleAuthFailureAsync);
+            Notifications = new NotificationSubscriber(this);
         }
 
         private static HttpClient CreateHttpClient(HttpClientHandler? handler)
@@ -48,9 +68,10 @@ namespace BaruHDLIntegration
         }
 
         /// <summary>
-        /// 認証ヘッダーを追加
+        /// 認証ヘッダーを付与する共通実装。ControllerServiceClient の override と、
+        /// Notification/Group への delegate 注入の両方から呼ばれる。
         /// </summary>
-        protected override void ConfigureRequest(HttpRequestMessage request)
+        private void AttachAuthHeader(HttpRequestMessage request)
         {
             if (_jwtToken != null)
             {
@@ -59,23 +80,23 @@ namespace BaruHDLIntegration
         }
 
         /// <summary>
-        /// 401時にトークンを更新してリトライ（最大1回）
+        /// 401 時にトークンを更新して 1 回だけリトライする共通実装。
         /// </summary>
-        protected override async Task<bool> OnRequestFailedAsync(
-            HttpResponseMessage response,
-            int retryCount,
-            CancellationToken cancellationToken)
+        private async Task<bool> HandleAuthFailureAsync(HttpResponseMessage response, int retryCount, CancellationToken cancellationToken)
         {
-            // リトライは1回まで
             if (retryCount > 0) return false;
-
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
                 await UpdateToken();
-                return _jwtToken != null; // トークン取得成功ならリトライ
+                return _jwtToken != null;
             }
             return false;
         }
+
+        protected override void ConfigureRequest(HttpRequestMessage request) => AttachAuthHeader(request);
+
+        protected override Task<bool> OnRequestFailedAsync(HttpResponseMessage response, int retryCount, CancellationToken cancellationToken)
+            => HandleAuthFailureAsync(response, retryCount, cancellationToken);
 
         public async Task UpdateToken()
         {
@@ -90,6 +111,11 @@ namespace BaruHDLIntegration
                 ResoniteMod.Warn($"Failed to get token: {e}");
                 _jwtToken = null;
             }
+        }
+
+        public void Dispose()
+        {
+            Notifications.Stop();
         }
     }
 }
