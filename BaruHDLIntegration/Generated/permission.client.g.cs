@@ -175,6 +175,30 @@ public class GroupServiceClient
             "UpdateGroupMemberRole", request, cancellationToken);
     }
 
+    public virtual Task<AddInvitedGroupMemberResponse> AddInvitedGroupMemberAsync(
+        AddInvitedGroupMemberRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<AddInvitedGroupMemberRequest, AddInvitedGroupMemberResponse>(
+            "AddInvitedGroupMember", request, cancellationToken);
+    }
+
+    public virtual Task<RemoveInvitedGroupMemberResponse> RemoveInvitedGroupMemberAsync(
+        RemoveInvitedGroupMemberRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<RemoveInvitedGroupMemberRequest, RemoveInvitedGroupMemberResponse>(
+            "RemoveInvitedGroupMember", request, cancellationToken);
+    }
+
+    public virtual Task<UpdateInvitedGroupMemberRoleResponse> UpdateInvitedGroupMemberRoleAsync(
+        UpdateInvitedGroupMemberRoleRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<UpdateInvitedGroupMemberRoleRequest, UpdateInvitedGroupMemberRoleResponse>(
+            "UpdateInvitedGroupMemberRole", request, cancellationToken);
+    }
+
 }
 
 /// <summary>

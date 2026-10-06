@@ -83,6 +83,34 @@ public class GroupMember
 
 }
 
+public class InvitedGroupMember
+{
+    [JsonPropertyName("groupId")]
+    public string GroupId { get; set; } = "";
+
+    [JsonPropertyName("invitationId")]
+    public string InvitationId { get; set; } = "";
+
+    [JsonPropertyName("resoniteId")]
+    public string ResoniteId { get; set; } = "";
+
+    [JsonPropertyName("roleId")]
+    public string RoleId { get; set; } = "";
+
+    [JsonPropertyName("addedBy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AddedBy { get; set; }
+
+    [JsonPropertyName("addedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? AddedAt { get; set; }
+
+    [JsonPropertyName("expiresAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? ExpiresAt { get; set; }
+
+}
+
 public class Role
 {
     [JsonPropertyName("id")]
@@ -243,6 +271,10 @@ public class ListGroupMembersResponse
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<GroupMember>? Members { get; set; } = new();
 
+    [JsonPropertyName("invitedMembers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<InvitedGroupMember>? InvitedMembers { get; set; } = new();
+
 }
 
 public class AddGroupMemberRequest
@@ -298,6 +330,62 @@ public class UpdateGroupMemberRoleResponse
     [JsonPropertyName("member")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GroupMember? Member { get; set; }
+
+}
+
+public class AddInvitedGroupMemberRequest
+{
+    [JsonPropertyName("groupId")]
+    public string GroupId { get; set; } = "";
+
+    [JsonPropertyName("invitationId")]
+    public string InvitationId { get; set; } = "";
+
+    [JsonPropertyName("roleId")]
+    public string RoleId { get; set; } = "";
+
+}
+
+public class AddInvitedGroupMemberResponse
+{
+    [JsonPropertyName("member")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InvitedGroupMember? Member { get; set; }
+
+}
+
+public class RemoveInvitedGroupMemberRequest
+{
+    [JsonPropertyName("groupId")]
+    public string GroupId { get; set; } = "";
+
+    [JsonPropertyName("invitationId")]
+    public string InvitationId { get; set; } = "";
+
+}
+
+public class RemoveInvitedGroupMemberResponse
+{
+}
+
+public class UpdateInvitedGroupMemberRoleRequest
+{
+    [JsonPropertyName("groupId")]
+    public string GroupId { get; set; } = "";
+
+    [JsonPropertyName("invitationId")]
+    public string InvitationId { get; set; } = "";
+
+    [JsonPropertyName("roleId")]
+    public string RoleId { get; set; } = "";
+
+}
+
+public class UpdateInvitedGroupMemberRoleResponse
+{
+    [JsonPropertyName("member")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InvitedGroupMember? Member { get; set; }
 
 }
 

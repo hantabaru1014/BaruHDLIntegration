@@ -175,5 +175,29 @@ public class UserServiceClient
             "DeleteUser", request, cancellationToken);
     }
 
+    public virtual Task<ListInvitationsResponse> ListInvitationsAsync(
+        ListInvitationsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<ListInvitationsRequest, ListInvitationsResponse>(
+            "ListInvitations", request, cancellationToken);
+    }
+
+    public virtual Task<ReissueInvitationResponse> ReissueInvitationAsync(
+        ReissueInvitationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<ReissueInvitationRequest, ReissueInvitationResponse>(
+            "ReissueInvitation", request, cancellationToken);
+    }
+
+    public virtual Task<RevokeInvitationResponse> RevokeInvitationAsync(
+        RevokeInvitationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<RevokeInvitationRequest, RevokeInvitationResponse>(
+            "RevokeInvitation", request, cancellationToken);
+    }
+
 }
 

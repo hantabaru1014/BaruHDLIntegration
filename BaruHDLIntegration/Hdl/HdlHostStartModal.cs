@@ -105,7 +105,10 @@ namespace BaruHDLIntegration.Hdl
                         rowUi.Text("(このグループにはアカウントがありません)", bestFit: true);
                         return accountRowSlot.AttachComponent<ValueField<int>>();
                     }
-                    var accLabels = filteredAccounts.Select(a => $"{a.UserName}").ToList();
+                    // 同一アカウントが複数グループに登録されうるので、グループで絞れていない時はグループ名も出す
+                    var accLabels = filteredAccounts.Select(a => groupIdForFilter == null
+                        ? $"{a.UserName} - {HdlSelectedGroup.FormatGroupLabel(a.GroupId)}"
+                        : $"{a.UserName}").ToList();
                     return HdlUI.BuildArrowSelector(rootSlot, rowUi, accLabels, 0);
                 });
             }
@@ -174,8 +177,10 @@ namespace BaruHDLIntegration.Hdl
                     string? imageTag = tagSelector.Value.Value == 0 ? null : tags[tagSelector.Value.Value - 1].Tag;
                     var policy = HdlUI.AutoUpdatePolicies[policySelector.Value.Value];
 
-                    // 作成先グループの決定: sidebar 選択 > モーダル内選択 > null (=personal)
-                    string? targetGroupId = GetGroupIdForFilter();
+                    // 作成先グループの決定: sidebar 選択 > モーダル内選択 > アカウントの登録先グループ
+                    // ヘッドレスアカウントはグループごとに登録されるので、account の group_id と一致させる
+                    string? targetGroupId = GetGroupIdForFilter()
+                        ?? (string.IsNullOrEmpty(account.GroupId) ? null : account.GroupId);
 
                     StartupConfig? startupConfig = null;
                     if (!string.IsNullOrEmpty(universeIdField.TargetString) || !string.IsNullOrEmpty(usernameField.TargetString))
@@ -195,8 +200,8 @@ namespace BaruHDLIntegration.Hdl
                         AutoUpdatePolicy = policy,
                         Memo = memoField.TargetString,
                         StartupConfig = startupConfig,
-                        // account.group_id と一致する必要がある。
-                        // sidebar / モーダル内選択の group_id を渡す (null = personal)
+                        // account.group_id と一致する必要がある (同一グループ制約)。
+                        // controller は headless_account_id のアカウントもこのグループから引く
                         GroupId = targetGroupId,
                     };
                     await client.StartHeadlessHostAsync(req);

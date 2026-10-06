@@ -129,6 +129,14 @@ public class ControllerServiceClient
             "GetHeadlessHostLogs", request, cancellationToken);
     }
 
+    public virtual Task<SearchHeadlessHostLogsResponse> SearchHeadlessHostLogsAsync(
+        SearchHeadlessHostLogsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<SearchHeadlessHostLogsRequest, SearchHeadlessHostLogsResponse>(
+            "SearchHeadlessHostLogs", request, cancellationToken);
+    }
+
     public virtual Task<ShutdownHeadlessHostResponse> ShutdownHeadlessHostAsync(
         ShutdownHeadlessHostRequest request,
         CancellationToken cancellationToken = default)
@@ -209,12 +217,36 @@ public class ControllerServiceClient
             "ListHeadlessHostInstances", request, cancellationToken);
     }
 
+    public virtual Task<ListResoniteVersionsResponse> ListResoniteVersionsAsync(
+        ListResoniteVersionsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<ListResoniteVersionsRequest, ListResoniteVersionsResponse>(
+            "ListResoniteVersions", request, cancellationToken);
+    }
+
+    public virtual Task<BuildResoniteImageResponse> BuildResoniteImageAsync(
+        BuildResoniteImageRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<BuildResoniteImageRequest, BuildResoniteImageResponse>(
+            "BuildResoniteImage", request, cancellationToken);
+    }
+
     public virtual Task<CreateHeadlessAccountResponse> CreateHeadlessAccountAsync(
         CreateHeadlessAccountRequest request,
         CancellationToken cancellationToken = default)
     {
         return RequestAsync<CreateHeadlessAccountRequest, CreateHeadlessAccountResponse>(
             "CreateHeadlessAccount", request, cancellationToken);
+    }
+
+    public virtual Task<RegisterHeadlessAccountResponse> RegisterHeadlessAccountAsync(
+        RegisterHeadlessAccountRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<RegisterHeadlessAccountRequest, RegisterHeadlessAccountResponse>(
+            "RegisterHeadlessAccount", request, cancellationToken);
     }
 
     public virtual Task<ListHeadlessAccountsResponse> ListHeadlessAccountsAsync(
@@ -551,6 +583,30 @@ public class ControllerServiceClient
     {
         return RequestAsync<CancelScheduledSessionOperationRequest, CancelScheduledSessionOperationResponse>(
             "CancelScheduledSessionOperation", request, cancellationToken);
+    }
+
+    public virtual Task<ListAsyncJobsResponse> ListAsyncJobsAsync(
+        ListAsyncJobsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<ListAsyncJobsRequest, ListAsyncJobsResponse>(
+            "ListAsyncJobs", request, cancellationToken);
+    }
+
+    public virtual Task<GetAsyncJobResponse> GetAsyncJobAsync(
+        GetAsyncJobRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<GetAsyncJobRequest, GetAsyncJobResponse>(
+            "GetAsyncJob", request, cancellationToken);
+    }
+
+    public virtual Task<TransferResourcesResponse> TransferResourcesAsync(
+        TransferResourcesRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return RequestAsync<TransferResourcesRequest, TransferResourcesResponse>(
+            "TransferResources", request, cancellationToken);
     }
 
 }

@@ -54,6 +54,23 @@ public enum AccessLevel
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
+public enum NetworkProtocol
+{
+    [JsonStringEnumMemberName("NETWORK_PROTOCOL_UNSPECIFIED")]
+    Unspecified = 0,
+
+    [JsonStringEnumMemberName("NETWORK_PROTOCOL_LNL")]
+    Lnl = 1,
+
+    [JsonStringEnumMemberName("NETWORK_PROTOCOL_QUIC")]
+    Quic = 2,
+
+    [JsonStringEnumMemberName("NETWORK_PROTOCOL_TCP")]
+    Tcp = 3,
+
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ContactChatMessageType
 {
     [JsonStringEnumMemberName("CONTACT_CHAT_MESSAGE_TYPE_UNSPECIFIED")]
@@ -1078,6 +1095,16 @@ public class DefaultUserRole
 
 }
 
+public class ForcePort
+{
+    [JsonPropertyName("protocol")]
+    public NetworkProtocol Protocol { get; set; }
+
+    [JsonPropertyName("port")]
+    public uint Port { get; set; }
+
+}
+
 public class WorldStartupParameters
 {
     [JsonPropertyName("name")]
@@ -1130,6 +1157,7 @@ public class WorldStartupParameters
     [JsonPropertyName("inviteRequestHandlerUsernames")]
     public List<string>? InviteRequestHandlerUsernames { get; set; } = new();
 
+    [Obsolete]
     [JsonPropertyName("forcePort")]
     public uint ForcePort { get; set; }
 
@@ -1181,6 +1209,10 @@ public class WorldStartupParameters
 
     [JsonPropertyName("joinAllowedUserIds")]
     public List<string>? JoinAllowedUserIds { get; set; } = new();
+
+    [JsonPropertyName("forcePorts")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ForcePort>? ForcePorts { get; set; } = new();
 
     // oneof: load_world
     [JsonPropertyName("loadWorldUrl")]
@@ -1412,6 +1444,9 @@ public class ResoniteLinkInit
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = "";
+
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = "";
 
 }
 

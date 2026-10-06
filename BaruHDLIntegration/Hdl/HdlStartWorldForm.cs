@@ -62,15 +62,17 @@ namespace BaruHDLIntegration.Hdl
                 try
                 {
                     var client = BaruHDLIntegration.GetClient();
-                    // ホスト一覧は全件取得して稼働中のみ抽出するため大きめのページサイズ
+                    // ホスト一覧は全件取得して選択可能なものを抽出するため大きめのページサイズ
                     // 選択中グループがあればそれに絞る (session.group_id とも一致させるため)
                     var res = await client.ListHeadlessHostAsync(new ListHeadlessHostRequest
                     {
                         Page = new PageRequest { PageIndex = 0, PageSize = HdlUI.FetchAllPageSize },
                         GroupId = HdlSelectedGroup.SelectedGroupId,
                     });
+                    // 停止中のホストは controller がホストを起動してからセッションを開始するので選択肢に含める (稼働中を先に並べる)
                     hosts = (res.Hosts ?? new List<HeadlessHost>())
-                        .Where(h => h.Status == HeadlessHostStatus.Running)
+                        .Where(h => h.Status == HeadlessHostStatus.Running || IsStoppedHost(h))
+                        .OrderBy(h => IsStoppedHost(h) ? 1 : 0)
                         .ToList();
                 }
                 catch (Exception ex)
@@ -92,7 +94,7 @@ namespace BaruHDLIntegration.Hdl
             }
             if (hosts == null || hosts.Count == 0)
             {
-                ui.Text("実行中のホストがありません！\nwebからホストを開始してください");
+                ui.Text("利用可能なホストがありません！\nwebからホストを作成してください");
                 return;
             }
             BuildContent(rootSlot, ui, ctx, hosts);
@@ -115,7 +117,8 @@ namespace BaruHDLIntegration.Hdl
                 {
                     var idShort = (h.Id ?? "").Substring(0, Math.Min(6, (h.Id ?? "").Length));
                     var groupLabel = HdlSelectedGroup.FormatGroupLabel(h.GroupId);
-                    return $"{h.Name}({idShort}) - {groupLabel}";
+                    var stoppedLabel = IsStoppedHost(h) ? $" [{h.Status}: 開始時に起動]" : "";
+                    return $"{h.Name}({idShort}) - {groupLabel}{stoppedLabel}";
                 }).ToList();
                 return HdlUI.BuildArrowSelector(rootSlot, ui, hostLabels, defaultHostIndex);
             });
@@ -210,43 +213,32 @@ namespace BaruHDLIntegration.Hdl
                         Parameters = parameters,
                         Memo = ctx.Memo,
                         // session.group_id は host.group_id と必ず一致する必要があるので host のものを継承。
-                        // sidebar「全て」時に SelectedGroupId=null を渡すと controller 側では personal group 扱いになり、
-                        // host.group_id が normal だとミスマッチ拒否される
+                        // (未指定でも controller が host のグループで解決するが、明示しておく)
                         GroupId = string.IsNullOrEmpty(host.GroupId) ? null : host.GroupId,
                     };
+                    // 完了通知を取りこぼさないよう、job 投入前に購読を開始しておく
+                    if (ctx.OnSessionCreated != null) client.Notifications.Start();
                     var response = await client.StartWorldAsync(req);
                     ctx.OnStarted?.Invoke(response.JobId);
                     rootSlot.RunSynchronously(() => rootSlot.Destroy());
 
-                    // OnSessionCreated が指定されていれば、job 完了通知を待って session を解決してから呼び出す
+                    // OnSessionCreated が指定されていれば、job 完了を待って session を解決してから呼び出す
                     if (ctx.OnSessionCreated != null)
                     {
                         var jobId = response.JobId;
-                        var hostId = host.Id;
                         var onSessionCreated = ctx.OnSessionCreated;
                         _ = Task.Run(async () =>
                         {
                             try
                             {
-                                var completion = await client.Notifications.WaitForJobAsync(
-                                    jobId, hostId, TimeSpan.FromSeconds(90));
-                                if (completion == null)
+                                var result = await client.Notifications.WaitForSessionStartAsync(jobId);
+                                if (!result.IsSuccess)
                                 {
-                                    ResoniteMod.Warn($"StartWorld job {jobId} did not complete within timeout");
-                                    return;
-                                }
-                                if (!completion.IsSuccess)
-                                {
-                                    ResoniteMod.Warn($"StartWorld job {jobId} failed: {completion.Message}");
-                                    return;
-                                }
-                                if (string.IsNullOrEmpty(completion.SessionId))
-                                {
-                                    ResoniteMod.Warn($"StartWorld job {jobId} succeeded but session_id could not be resolved");
+                                    ResoniteMod.Warn($"StartWorld job {jobId}: {result.Error}");
                                     return;
                                 }
                                 var detail = await client.GetSessionDetailsAsync(
-                                    new Hdlctrl.V1.GetSessionDetailsRequest { SessionId = completion.SessionId! });
+                                    new Hdlctrl.V1.GetSessionDetailsRequest { SessionId = result.SessionId! });
                                 if (detail.Session != null)
                                 {
                                     onSessionCreated(detail.Session);
@@ -270,6 +262,9 @@ namespace BaruHDLIntegration.Hdl
                 rootSlot.RunSynchronously(() => rootSlot.Destroy());
             };
         }
+
+        private static bool IsStoppedHost(HeadlessHost host) =>
+            host.Status == HeadlessHostStatus.Exited || host.Status == HeadlessHostStatus.Crashed;
 
         internal static SessionAccessLevel ConvertToSession(Headless.Rpc.AccessLevel rpcLevel) => rpcLevel switch
         {

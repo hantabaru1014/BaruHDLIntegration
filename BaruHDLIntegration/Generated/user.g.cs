@@ -158,6 +158,9 @@ public class CreateRegistrationTokenResponse
     [JsonPropertyName("iconUrl")]
     public string IconUrl { get; set; } = "";
 
+    [JsonPropertyName("invitationId")]
+    public string InvitationId { get; set; } = "";
+
 }
 
 public class DeleteUserRequest
@@ -168,6 +171,69 @@ public class DeleteUserRequest
 }
 
 public class DeleteUserResponse
+{
+}
+
+public class Invitation
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("resoniteId")]
+    public string ResoniteId { get; set; } = "";
+
+    [JsonPropertyName("personalRoleId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PersonalRoleId { get; set; }
+
+    [JsonPropertyName("expiresAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? ExpiresAt { get; set; }
+
+    [JsonPropertyName("createdAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? CreatedAt { get; set; }
+
+}
+
+public class ListInvitationsRequest
+{
+}
+
+public class ListInvitationsResponse
+{
+    [JsonPropertyName("invitations")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<Invitation>? Invitations { get; set; } = new();
+
+}
+
+public class ReissueInvitationRequest
+{
+    [JsonPropertyName("invitationId")]
+    public string InvitationId { get; set; } = "";
+
+}
+
+public class ReissueInvitationResponse
+{
+    [JsonPropertyName("token")]
+    public string Token { get; set; } = "";
+
+    [JsonPropertyName("expiresAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? ExpiresAt { get; set; }
+
+}
+
+public class RevokeInvitationRequest
+{
+    [JsonPropertyName("invitationId")]
+    public string InvitationId { get; set; } = "";
+
+}
+
+public class RevokeInvitationResponse
 {
 }
 
